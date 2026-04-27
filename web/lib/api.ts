@@ -5,7 +5,7 @@
  * Em PROD, a mesma origem é assumida (deploy atrás de reverse proxy).
  */
 
-import { lerSessao, limparSessao, salvarSessao } from "./auth";
+import { limparSessao, salvarSessao } from "./auth";
 import type {
   AuditEntry,
   ChatRequest,
@@ -40,23 +40,21 @@ async function request<T>(
   path: string,
   options: RequestInit & { auth?: boolean } = {}
 ): Promise<T> {
-  const { auth = true, headers = {}, ...rest } = options;
+  const { auth: _auth = true, headers = {}, ...rest } = options;
+  // Intencionalmente ignorado: a auth agora vem 100% do cookie HttpOnly
+  // setado pelo /auth/login. Mantemos o param para retrocompat dos call
+  // sites — vai sair em uma limpeza futura.
+  void _auth;
 
   const finalHeaders: Record<string, string> = {
     "Content-Type": "application/json",
     ...(headers as Record<string, string>),
   };
 
-  if (auth) {
-    const session = lerSessao();
-    if (session) {
-      finalHeaders["Authorization"] = `Bearer ${session.access_token}`;
-    }
-  }
-
   const resp = await fetch(`${API_BASE}${path}`, {
     ...rest,
     headers: finalHeaders,
+    credentials: "same-origin",
   });
 
   if (resp.status === 401) {
@@ -112,6 +110,17 @@ export async function login(input: {
   });
   salvarSessao(data);
   return data;
+}
+
+export async function logout(): Promise<void> {
+  try {
+    await request<void>("/auth/logout", { method: "POST", auth: false });
+  } catch {
+    // Mesmo se a chamada falhar (rede etc.), limpamos o estado local
+    // para que a UI volte ao login. O cookie expira por max-age de toda
+    // forma.
+  }
+  limparSessao();
 }
 
 // ===========================================================================
@@ -270,13 +279,9 @@ export async function adminUploadFiles(
   const fd = new FormData();
   for (const f of files) fd.append("files", f, f.name);
 
-  const session = lerSessao();
-  const headers: Record<string, string> = {};
-  if (session) headers["Authorization"] = `Bearer ${session.access_token}`;
-
   const resp = await fetch(
     `/api/admin/tenants/${encodeURIComponent(tenantId)}/sources/${sourceId}/files`,
-    { method: "POST", body: fd, headers }
+    { method: "POST", body: fd, credentials: "same-origin" }
   );
   if (!resp.ok) {
     const raw = await resp.text();

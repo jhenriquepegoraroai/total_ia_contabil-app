@@ -2,12 +2,11 @@
 Endpoints de autenticação.
 
 POST /auth/login          email + senha → JWT (uso em produção)
+POST /auth/logout         limpa o cookie httpOnly (fim de sessão browser)
 POST /auth/dev-token      DEV only — sem credencial; 404 em prod
 """
 
-from typing import Annotated
-
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, Request, Response, status
 from loguru import logger
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import text
@@ -17,6 +16,32 @@ from api.db import superadmin_session
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+def _set_auth_cookie(response: Response, token: str) -> None:
+    """
+    Seta o JWT em cookie HttpOnly para o browser. Defesa contra XSS:
+    JS da página NÃO consegue ler o token, então mesmo se houver injeção
+    no front, o atacante não rouba a sessão.
+    """
+    response.set_cookie(
+        key=auth.AUTH_COOKIE_NAME,
+        value=token,
+        max_age=config.JWT_EXPIRES_MINUTES * 60,
+        httponly=True,
+        samesite="lax",
+        secure=config.IS_PRODUCTION,  # em DEV, http://localhost não envia se Secure=True
+        path="/",
+    )
+
+
+def _clear_auth_cookie(response: Response) -> None:
+    response.delete_cookie(
+        key=auth.AUTH_COOKIE_NAME,
+        path="/",
+        samesite="lax",
+        secure=config.IS_PRODUCTION,
+    )
 
 
 # =============================================================================
@@ -46,7 +71,9 @@ class DevTokenRequest(BaseModel):
 # Login email + senha
 # =============================================================================
 @router.post("/login", response_model=TokenResponse)
-async def login(payload: LoginRequest, request: Request) -> TokenResponse:
+async def login(
+    payload: LoginRequest, request: Request, response: Response
+) -> TokenResponse:
     """
     Login por email + senha. Se `tenant_id` não vier no body, busca usuário
     por email entre todos os tenants — caso de uso típico do superadmin.
@@ -96,6 +123,7 @@ async def login(payload: LoginRequest, request: Request) -> TokenResponse:
         role=row.role,
         is_superadmin=row.is_superadmin,
     )
+    _set_auth_cookie(response, token)
     logger.info(
         f"Login OK email={payload.email} tenant={row.tenant_id} "
         f"superadmin={row.is_superadmin}"
@@ -109,10 +137,20 @@ async def login(payload: LoginRequest, request: Request) -> TokenResponse:
 
 
 # =============================================================================
+# Logout — limpa o cookie httpOnly
+# =============================================================================
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout(response: Response) -> None:
+    _clear_auth_cookie(response)
+
+
+# =============================================================================
 # Dev token (sem credencial, só DEV)
 # =============================================================================
 @router.post("/dev-token", response_model=TokenResponse)
-async def dev_token(payload: DevTokenRequest, request: Request) -> TokenResponse:
+async def dev_token(
+    payload: DevTokenRequest, request: Request, response: Response
+) -> TokenResponse:
     """Gera um JWT para desenvolvimento. INDISPONÍVEL em produção."""
     if config.IS_PRODUCTION:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
@@ -129,6 +167,7 @@ async def dev_token(payload: DevTokenRequest, request: Request) -> TokenResponse
         tenant_id=payload.tenant_id,
         role=payload.role,
     )
+    _set_auth_cookie(response, token)
     return TokenResponse(
         access_token=token,
         tenant_id=payload.tenant_id,

@@ -7,7 +7,8 @@ import { LayoutDashboard, Building2, ShieldCheck, LogOut, ChevronLeft } from "lu
 
 import { Button } from "@/components/ui/button";
 import { LelloLogo } from "@/components/lello-logo";
-import { lerSessao, limparSessao } from "@/lib/auth";
+import { lerSessao } from "@/lib/auth";
+import { logout as logoutApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 const NAV = [
@@ -35,8 +36,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     setEmail(s.user_id);
   }, [router]);
 
-  function logout() {
-    limparSessao();
+  async function logout() {
+    await logoutApi();
     router.replace("/login");
   }
 

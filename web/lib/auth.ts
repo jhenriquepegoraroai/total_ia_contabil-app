@@ -1,8 +1,10 @@
 /**
  * Auth client-side.
  *
- * NOTA: usamos localStorage para o token. Em produção, mover para cookie
- * httpOnly setado pelo backend (mais seguro contra XSS).
+ * O JWT vive em cookie HttpOnly setado pelo backend — JS desta página
+ * NÃO o lê (defesa contra XSS). O que guardamos aqui é só metadado de
+ * UI: tenant_id, user_id, is_superadmin, suficiente para roteamento e
+ * exibição. O cookie é o que autoriza as chamadas à API.
  */
 
 import type { TokenResponse } from "./types";
@@ -10,7 +12,6 @@ import type { TokenResponse } from "./types";
 const STORAGE_KEY = "avc_session";
 
 interface StoredSession {
-  access_token: string;
   tenant_id: string;
   user_id: string;
   is_superadmin: boolean;
@@ -19,7 +20,6 @@ interface StoredSession {
 export function salvarSessao(token: TokenResponse): void {
   if (typeof window === "undefined") return;
   const session: StoredSession = {
-    access_token: token.access_token,
     tenant_id: token.tenant_id,
     user_id: token.user_id,
     is_superadmin: token.is_superadmin ?? false,
@@ -34,7 +34,6 @@ export function lerSessao(): StoredSession | null {
   try {
     const parsed = JSON.parse(raw) as Partial<StoredSession>;
     return {
-      access_token: parsed.access_token ?? "",
       tenant_id: parsed.tenant_id ?? "",
       user_id: parsed.user_id ?? "",
       is_superadmin: parsed.is_superadmin ?? false,

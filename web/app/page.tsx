@@ -8,8 +8,8 @@ import { Button } from "@/components/ui/button";
 import { ChatInput } from "@/components/chat/chat-input";
 import { MessageList } from "@/components/chat/message-list";
 import { LelloLogo } from "@/components/lello-logo";
-import { ApiError, chat } from "@/lib/api";
-import { lerSessao, limparSessao } from "@/lib/auth";
+import { ApiError, chat, logout as logoutApi } from "@/lib/api";
+import { lerSessao } from "@/lib/auth";
 import type { Message } from "@/lib/types";
 
 export default function ChatPage() {
@@ -95,8 +95,8 @@ export default function ChatPage() {
     }
   }
 
-  function logout() {
-    limparSessao();
+  async function logout() {
+    await logoutApi();
     router.replace("/login");
   }
 

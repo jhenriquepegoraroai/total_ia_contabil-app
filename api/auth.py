@@ -28,6 +28,12 @@ _oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
 _pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
+# Nome do cookie HttpOnly que carrega o JWT no fluxo browser. Mantemos
+# também o header `Authorization: Bearer ...` para compatibilidade com
+# ferramentas de teste (curl, Postman, scripts).
+AUTH_COOKIE_NAME = "avc_token"
+
+
 # =============================================================================
 # Senhas
 # =============================================================================
@@ -97,7 +103,13 @@ async def usuario_atual(
     request: Request,
     token: Annotated[str | None, Depends(_oauth2_scheme)] = None,
 ) -> CurrentUser:
-    """Extrai o usuário do JWT do header `Authorization: Bearer <token>`."""
+    """
+    Extrai o usuário do JWT, na ordem:
+      1. Header `Authorization: Bearer <token>` (curl/postman/scripts)
+      2. Cookie HttpOnly `avc_token` (browser, fluxo padrão)
+    """
+    if not token:
+        token = request.cookies.get(AUTH_COOKIE_NAME)
     if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
