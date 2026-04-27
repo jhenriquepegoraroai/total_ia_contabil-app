@@ -7,9 +7,18 @@
 
 import { lerSessao, limparSessao, salvarSessao } from "./auth";
 import type {
+  AuditEntry,
   ChatRequest,
   ChatResponse,
   HealthResponse,
+  IngestionJob,
+  SourceConfigPayload,
+  SourceDetail,
+  SourceFile,
+  SourceSummary,
+  TenantConfig,
+  TenantSummary,
+  TestConnectionResult,
   TokenResponse,
 } from "./types";
 
@@ -51,7 +60,6 @@ async function request<T>(
   }
 
   if (!resp.ok) {
-    // Body stream só pode ser consumido uma vez — text() primeiro, parse JSON depois.
     const raw = await resp.text();
     let body: unknown = raw;
     try {
@@ -66,13 +74,13 @@ async function request<T>(
     throw new ApiError(resp.status, detail, body);
   }
 
+  if (resp.status === 204) return undefined as T;
   return (await resp.json()) as T;
 }
 
 // ===========================================================================
-// Endpoints
+// Auth
 // ===========================================================================
-
 export async function devLogin(input: {
   tenant_id: string;
   user_id?: string;
@@ -101,6 +109,9 @@ export async function login(input: {
   return data;
 }
 
+// ===========================================================================
+// Chat / Health
+// ===========================================================================
 export async function chat(payload: ChatRequest): Promise<ChatResponse> {
   return request<ChatResponse>("/chat", {
     method: "POST",
@@ -112,11 +123,9 @@ export async function health(): Promise<HealthResponse> {
   return request<HealthResponse>("/health", { method: "GET", auth: false });
 }
 
-// =============================================================================
-// Admin endpoints
-// =============================================================================
-import type { AuditEntry, TenantConfig, TenantSummary } from "./types";
-
+// ===========================================================================
+// Admin — tenants
+// ===========================================================================
 export async function adminListarTenants(): Promise<TenantSummary[]> {
   return request<TenantSummary[]>("/admin/tenants");
 }
@@ -171,6 +180,116 @@ export async function adminListarAudit(params?: {
   if (params?.target_tenant_id) qs.set("target_tenant_id", params.target_tenant_id);
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
   return request<AuditEntry[]>(`/admin/audit${suffix}`);
+}
+
+// ===========================================================================
+// Admin — sources
+// ===========================================================================
+export async function adminListarSources(tenantId: string): Promise<SourceSummary[]> {
+  return request<SourceSummary[]>(`/admin/tenants/${encodeURIComponent(tenantId)}/sources`);
+}
+
+export async function adminBuscarSource(
+  tenantId: string,
+  sourceId: string
+): Promise<SourceDetail> {
+  return request<SourceDetail>(
+    `/admin/tenants/${encodeURIComponent(tenantId)}/sources/${sourceId}`
+  );
+}
+
+export async function adminCriarSource(
+  tenantId: string,
+  body: { name: string; config: SourceConfigPayload; secret_name?: string }
+): Promise<SourceDetail> {
+  return request<SourceDetail>(`/admin/tenants/${encodeURIComponent(tenantId)}/sources`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminDeletarSource(
+  tenantId: string,
+  sourceId: string
+): Promise<void> {
+  await request<void>(
+    `/admin/tenants/${encodeURIComponent(tenantId)}/sources/${sourceId}`,
+    { method: "DELETE" }
+  );
+}
+
+export async function adminTestarConexao(
+  config: SourceConfigPayload
+): Promise<TestConnectionResult> {
+  return request<TestConnectionResult>("/admin/sources/test-connection", {
+    method: "POST",
+    body: JSON.stringify({ config }),
+  });
+}
+
+export async function adminListarFiles(
+  tenantId: string,
+  sourceId: string
+): Promise<SourceFile[]> {
+  return request<SourceFile[]>(
+    `/admin/tenants/${encodeURIComponent(tenantId)}/sources/${sourceId}/files`
+  );
+}
+
+export async function adminUploadFiles(
+  tenantId: string,
+  sourceId: string,
+  files: File[]
+): Promise<{
+  uploaded: { filename: string; key: string; size_bytes: number; ok: boolean; erro: string | null }[];
+}> {
+  const fd = new FormData();
+  for (const f of files) fd.append("files", f, f.name);
+
+  const session = lerSessao();
+  const headers: Record<string, string> = {};
+  if (session) headers["Authorization"] = `Bearer ${session.access_token}`;
+
+  const resp = await fetch(
+    `/api/admin/tenants/${encodeURIComponent(tenantId)}/sources/${sourceId}/files`,
+    { method: "POST", body: fd, headers }
+  );
+  if (!resp.ok) {
+    const raw = await resp.text();
+    throw new ApiError(resp.status, raw || `${resp.status}`, raw);
+  }
+  return await resp.json();
+}
+
+// ===========================================================================
+// Admin — ingestion jobs
+// ===========================================================================
+export async function adminDispararJob(
+  tenantId: string,
+  body: { source_id: string; referencia?: string }
+): Promise<IngestionJob> {
+  return request<IngestionJob>(
+    `/admin/tenants/${encodeURIComponent(tenantId)}/ingestions`,
+    { method: "POST", body: JSON.stringify(body) }
+  );
+}
+
+export async function adminListarJobs(
+  tenantId: string,
+  limit = 50
+): Promise<IngestionJob[]> {
+  return request<IngestionJob[]>(
+    `/admin/tenants/${encodeURIComponent(tenantId)}/ingestions?limit=${limit}`
+  );
+}
+
+export async function adminBuscarJob(
+  tenantId: string,
+  jobId: string
+): Promise<IngestionJob> {
+  return request<IngestionJob>(
+    `/admin/tenants/${encodeURIComponent(tenantId)}/ingestions/${jobId}`
+  );
 }
 
 export { ApiError };

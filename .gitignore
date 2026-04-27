@@ -35,11 +35,15 @@ next-env.d.ts
 .DS_Store
 Thumbs.db
 
-# Dados locais
-data/
-storage/
+# Dados locais (uploads de DEV — não inclui o pacote api/storage/)
+/data/
+/storage/
 *.sqlite
 *.db
+ata-*.pdf
+*.pdf
+
+!api/storage/
 
 # Docker
 .dockerignore.local

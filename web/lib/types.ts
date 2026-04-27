@@ -121,6 +121,80 @@ export interface AuditEntry {
   created_at: string;
 }
 
+// =============================================================================
+// Data sources (Fase 6)
+// =============================================================================
+export type SourceType =
+  | "pdf_upload"
+  | "excel_upload"
+  | "csv_upload"
+  | "s3"
+  | "azure_blob"
+  | "postgres"
+  | "sqlserver"
+  | "databricks";
+
+export interface SourceSummary {
+  id: string;
+  tenant_id: string;
+  name: string;
+  type: SourceType;
+  enabled: boolean;
+  qtde_files: number;
+  last_run_at: string | null;
+  last_run_status: "queued" | "running" | "done" | "failed" | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SourceDetail extends SourceSummary {
+  config: Record<string, unknown>;
+  secret_name: string | null;
+}
+
+export interface SourceFile {
+  key: string;
+  filename: string;
+  size_bytes: number;
+  last_modified: string | null;
+}
+
+export type SourceConfigPayload =
+  | { type: "pdf_upload"; referencia_default?: string | null }
+  | { type: "excel_upload"; referencia_default?: string | null; coluna_referencia?: string | null; coluna_texto: string }
+  | { type: "csv_upload"; referencia_default?: string | null; coluna_referencia?: string | null; coluna_texto: string; delimiter?: string }
+  | { type: "s3"; bucket: string; region?: string; prefix?: string; access_key_id?: string; secret_access_key?: string }
+  | { type: "azure_blob"; account: string; container: string; prefix?: string; sas_token?: string; account_key?: string }
+  | { type: "postgres"; host: string; port?: number; database: string; user: string; password?: string; ssl_mode?: string; table?: string; coluna_referencia?: string; coluna_texto?: string; coluna_data?: string; custom_query?: string }
+  | { type: "sqlserver"; host: string; port?: number; database: string; user: string; password?: string; table?: string; coluna_referencia?: string; coluna_texto?: string; coluna_data?: string; custom_query?: string }
+  | { type: "databricks"; server_hostname: string; http_path: string; cluster_id: string; table_embeddings: string; access_token?: string };
+
+export interface IngestionJob {
+  id: string;
+  tenant_id: string;
+  source_id: string | null;
+  source_name: string | null;
+  source_type: string | null;
+  referencia: string | null;
+  status: "queued" | "running" | "done" | "failed" | "cancelled";
+  started_at: string | null;
+  finished_at: string | null;
+  qtde_chunks_origem: number;
+  qtde_processada: number;
+  qtde_skipped: number;
+  qtde_erros: number;
+  duracao_segundos: number | null;
+  erro_detalhe: string | null;
+  actor_email: string | null;
+  created_at: string;
+}
+
+export interface TestConnectionResult {
+  ok: boolean;
+  detail: string;
+  metadata: Record<string, unknown>;
+}
+
 export interface HealthResponse {
   status: string;
   db: string;

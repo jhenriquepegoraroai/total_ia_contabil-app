@@ -58,6 +58,7 @@ services:
     volumes:
       - ./api:/app/api
       - ./ingestion:/app/ingestion
+      - ./data:/app/data        # storage local (uploads de PDF, etc.)
     command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 
   web:

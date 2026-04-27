@@ -95,7 +95,7 @@ DEFAULT_SIMILARITY_THRESHOLD: Final[float] = float(
 # Storage
 # -----------------------------------------------------------------------------
 STORAGE_PROVIDER: Final[str] = _optional("STORAGE_PROVIDER", "local")
-STORAGE_LOCAL_PATH: Final[str] = _optional("STORAGE_LOCAL_PATH", "./data/storage")
+STORAGE_LOCAL_PATH: Final[str] = _optional("STORAGE_LOCAL_PATH", "/app/data/storage")
 
 # -----------------------------------------------------------------------------
 # Tenants

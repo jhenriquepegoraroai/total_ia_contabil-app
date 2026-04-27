@@ -22,6 +22,7 @@ from api import config
 from api.db import dispose_engine, superadmin_session
 from api.middleware.trace_middleware import TraceIdMiddleware
 from api.routers import admin as admin_router
+from api.routers import admin_data as admin_data_router
 from api.routers import auth as auth_router
 from api.routers import chat as chat_router
 from api.routers import health as health_router
@@ -57,7 +58,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Assistente Virtual de Condomínios",
     description="API multi-tenant de RAG sobre documentos de condomínios.",
-    version="0.5.0",
+    version="0.6.0",
     lifespan=lifespan,
 )
 
@@ -69,3 +70,4 @@ app.include_router(health_router.router)
 app.include_router(auth_router.router)
 app.include_router(chat_router.router)
 app.include_router(admin_router.router)
+app.include_router(admin_data_router.router)
