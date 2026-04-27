@@ -136,10 +136,14 @@ class EmbeddingClient:
         await self._client.close()
 
 
-def cliente_padrao() -> EmbeddingClient:
-    """Constrói cliente com defaults da config (env vars)."""
+def cliente_padrao(api_key: str | None = None) -> EmbeddingClient:
+    """
+    Constrói EmbeddingClient. Se `api_key` for passado, usa essa chave
+    (caso de tenant com chave própria). Senão, usa a OPEN_AI_KEY do env
+    (chave da Lello).
+    """
     return EmbeddingClient(
-        api_key=config.OPEN_AI_KEY,
+        api_key=api_key or config.OPEN_AI_KEY,
         model=config.EMBEDDING_MODEL,
         max_retries=config.INGESTION_OPENAI_MAX_RETRIES,
         timeout_seconds=config.INGESTION_OPENAI_TIMEOUT,

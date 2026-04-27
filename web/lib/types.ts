@@ -79,6 +79,15 @@ export interface TenantURLs {
   cadastro_inquilino?: string | null;
 }
 
+export interface TenantOpenAIConfig {
+  /** "lello" usa a chave global da plataforma; "custom" usa a chave do próprio cliente. */
+  mode: "lello" | "custom";
+  /** Chave OpenAI (sk-...). Em GETs do admin vem mascarada (`sk-proj...wxyz`). */
+  api_key: string | null;
+  /** Nome do secret no Secrets Manager (em prod). Opcional. */
+  secret_name: string | null;
+}
+
 export interface TenantConfig {
   schema_version?: string;
   tenant_id: string;
@@ -90,6 +99,7 @@ export interface TenantConfig {
   datasource: { type: "postgres_pgvector" } | { type: "databricks"; [k: string]: unknown };
   theme?: Partial<TenantTheme>;
   rag?: { top_k?: number; similarity_threshold?: number; completion_temperature?: number };
+  openai?: TenantOpenAIConfig;
   schemas_estruturados?: Record<string, string>;
   prompt_principal: string;
   prompt_formatacao: string;

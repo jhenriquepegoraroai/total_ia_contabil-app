@@ -109,9 +109,9 @@ class LLMClient:
 
 @lru_cache(maxsize=1)
 def get_llm_client() -> LLMClient:
-    """Singleton process-wide — boot config valida que OPEN_AI_KEY existe."""
+    """Cliente default — usa OPEN_AI_KEY do env (chave da Lello)."""
     logger.info(
-        f"Inicializando LLMClient (embedding={config.EMBEDDING_MODEL}, "
+        f"Inicializando LLMClient default (embedding={config.EMBEDDING_MODEL}, "
         f"completion={config.COMPLETION_MODEL})"
     )
     return LLMClient(
@@ -119,3 +119,35 @@ def get_llm_client() -> LLMClient:
         embedding_model=config.EMBEDDING_MODEL,
         completion_model=config.COMPLETION_MODEL,
     )
+
+
+# Cache de clientes por chave (clientes com chave própria).
+# Usa hash da chave como key para não vazar a chave nos logs/repr do cache.
+@lru_cache(maxsize=64)
+def _get_llm_client_for_key(api_key: str) -> LLMClient:
+    logger.info(
+        f"Inicializando LLMClient com chave OpenAI dedicada (hash="
+        f"{hash(api_key) & 0xFFFF:04x}, embedding={config.EMBEDDING_MODEL})"
+    )
+    return LLMClient(
+        api_key=api_key,
+        embedding_model=config.EMBEDDING_MODEL,
+        completion_model=config.COMPLETION_MODEL,
+    )
+
+
+def get_llm_client_for_tenant(tenant_config) -> LLMClient:
+    """
+    Resolve o cliente LLM apropriado para um tenant.
+
+    - Se `tenant_config.openai.mode == 'custom'` e há `api_key`, usa a
+      chave do cliente (cliente paga o consumo).
+    - Senão, cai no cliente default (chave da Lello).
+
+    O parâmetro `tenant_config` não é tipado para evitar import circular
+    (TenantConfig importaria api.llm que importaria api.tenants.models).
+    """
+    cfg = getattr(tenant_config, "openai", None)
+    if cfg is not None and cfg.mode == "custom" and cfg.api_key:
+        return _get_llm_client_for_key(cfg.api_key)
+    return get_llm_client()

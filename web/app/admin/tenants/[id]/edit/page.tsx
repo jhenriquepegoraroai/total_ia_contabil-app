@@ -15,7 +15,8 @@ import {
   adminAtualizarTenant,
   adminBuscarTenant,
 } from "@/lib/api";
-import type { TenantConfig } from "@/lib/types";
+import type { TenantConfig, TenantOpenAIConfig } from "@/lib/types";
+import { OpenAIKeyCard } from "@/components/admin/openai-key-card";
 
 
 export default function EditTenantPage({
@@ -88,6 +89,15 @@ export default function EditTenantPage({
       c ? { ...c, theme: { ...(c.theme || {}), ...patch } } : c
     );
   }
+  function updateOpenAI(novo: TenantOpenAIConfig) {
+    setConfig((c) => (c ? { ...c, openai: novo } : c));
+  }
+
+  const openaiValue: TenantOpenAIConfig = config.openai ?? {
+    mode: "lello",
+    api_key: null,
+    secret_name: null,
+  };
 
   const theme = config.theme ?? {};
 
@@ -214,6 +224,8 @@ export default function EditTenantPage({
             <ColorField label="Accent" value={theme.accent ?? ""} onChange={(v) => updateTheme({ accent: v })} />
           </CardContent>
         </Card>
+
+        <OpenAIKeyCard value={openaiValue} onChange={updateOpenAI} />
 
         <Card>
           <CardHeader>

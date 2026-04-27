@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 from api import auth
 from api.core.rag import RAGResposta, responder
 from api.db import tenant_session
-from api.llm import get_llm_client
+from api.llm import get_llm_client_for_tenant
 from api.tenants.datasources.factory import criar_datasource
 
 
@@ -76,7 +76,7 @@ async def chat(
         f"user={user.user_id} role={user.role}"
     )
 
-    llm = get_llm_client()
+    llm = get_llm_client_for_tenant(tenant_config)
 
     async with tenant_session(user.tenant_id) as session:
         datasource = criar_datasource(tenant_config, session)

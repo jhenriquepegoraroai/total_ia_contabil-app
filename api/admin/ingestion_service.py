@@ -294,9 +294,20 @@ async def _executar_job(
 
         connector_pre = _PreLidoConnector(chunks_pre_lidos, connector.describe())
 
+        # Resolve a chave OpenAI do tenant: se 'custom', usa a do cliente;
+        # senão, cai na chave da Lello (OPEN_AI_KEY do env).
+        tenant_openai = getattr(tenant_config, "openai", None)
+        api_key_override = (
+            tenant_openai.api_key
+            if tenant_openai and tenant_openai.mode == "custom" and tenant_openai.api_key
+            else None
+        )
+        if api_key_override:
+            logger.info(f"[ingestion] usando chave OpenAI do tenant {tenant_id}")
+
         # Pipeline precisa de uma `tenant_session` (com RLS) para inserir
         # documents_embeddings/embeddings_audit corretamente.
-        embedding_client = cliente_padrao()
+        embedding_client = cliente_padrao(api_key=api_key_override)
         try:
             async with tenant_session(tenant_id) as session:
                 audit = await pipeline_executar(

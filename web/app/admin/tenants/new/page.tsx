@@ -10,7 +10,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiError, adminCriarTenant } from "@/lib/api";
-import type { TenantConfig } from "@/lib/types";
+import type { TenantConfig, TenantOpenAIConfig } from "@/lib/types";
+import { OpenAIKeyCard } from "@/components/admin/openai-key-card";
 
 const PROMPT_PRINCIPAL_PADRAO =
   "Você é o assistente virtual desta administradora. Responda à pergunta do usuário com base EXCLUSIVAMENTE no contexto fornecido (parágrafos extraídos de documentos do condomínio). Tom: amigável, profissional, claro. Cite as fontes (nome do arquivo e data) ao final. Se a informação não estiver no contexto, responda exatamente: 'Não encontrei essa informação nos documentos do seu condomínio.'";
@@ -39,6 +40,11 @@ export default function NewTenantPage() {
   const [primary, setPrimary] = useState("#CB1D40");
   const [secondary, setSecondary] = useState("#5D0E1F");
   const [accent, setAccent] = useState("#F5B79E");
+  const [openai, setOpenai] = useState<TenantOpenAIConfig>({
+    mode: "lello",
+    api_key: null,
+    secret_name: null,
+  });
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -77,6 +83,11 @@ export default function NewTenantPage() {
         font_family: "Inter, sans-serif",
       },
       rag: { top_k: 8, similarity_threshold: 0.3, completion_temperature: 0.2 },
+      openai: {
+        mode: openai.mode,
+        api_key: openai.mode === "custom" ? (openai.api_key || null) : null,
+        secret_name: openai.secret_name,
+      },
       schemas_estruturados: { condominios: "condominios", areas: "condominio_areas" },
       prompt_principal: PROMPT_PRINCIPAL_PADRAO,
       prompt_formatacao: PROMPT_FORMATACAO_PADRAO,
@@ -236,6 +247,8 @@ export default function NewTenantPage() {
             <ColorField label="Accent" value={accent} onChange={setAccent} />
           </CardContent>
         </Card>
+
+        <OpenAIKeyCard value={openai} onChange={setOpenai} />
 
         {erro && (
           <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">

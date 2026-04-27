@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from api.admin import service as admin_service
 from api.auth import CurrentUser, superadmin_required
 from api.db import superadmin_session
-from api.tenants.models import TenantConfig
+from api.tenants.models import TenantConfig, mascarar_openai_key
 
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -68,6 +68,46 @@ def _client_meta(request: Request) -> tuple[str | None, str | None]:
     return request.client.host if request.client else None, request.headers.get("user-agent")
 
 
+def _config_for_response(config_json: dict[str, Any]) -> TenantConfig:
+    """
+    Aceita o config_json bruto do DB e devolve um TenantConfig com a chave
+    OpenAI MASCARADA — nunca devolver `api_key` real para o frontend.
+    O DB continua tendo a chave em texto.
+    """
+    cfg = TenantConfig(**config_json)
+    if cfg.openai.api_key:
+        cfg.openai.api_key = mascarar_openai_key(cfg.openai.api_key)
+    return cfg
+
+
+async def _merge_openai_key_se_omissa(
+    tenant_id: str,
+    payload: TenantConfig,
+) -> None:
+    """
+    Se o PUT vem com `openai.mode='custom'` mas `api_key` vazia OU mascarada,
+    preserva a chave salva no DB. Permite o frontend submeter o form de edit
+    sem precisar reinformar a chave a cada save.
+    """
+    incoming = payload.openai.api_key
+    if payload.openai.mode != "custom":
+        return
+    if incoming and not _parece_mascarada(incoming):
+        return  # Chave nova válida fornecida — usar como veio.
+
+    async with superadmin_session() as session:
+        existing = await admin_service.buscar_tenant(session, tenant_id)
+    if not existing or not existing.get("config_json"):
+        return
+    saved = TenantConfig(**existing["config_json"])
+    if saved.openai.api_key:
+        payload.openai.api_key = saved.openai.api_key
+
+
+def _parece_mascarada(key: str) -> bool:
+    return "..." in key or "***" in key
+
+
 # =============================================================================
 # Endpoints
 # =============================================================================
@@ -112,7 +152,7 @@ async def detalhe(
         enabled=r["enabled"],
         created_at=r["created_at"],
         updated_at=r["updated_at"],
-        config=TenantConfig(**r["config_json"]),
+        config=_config_for_response(r["config_json"]),
     )
 
 
@@ -149,7 +189,7 @@ async def criar(
         enabled=r["enabled"],
         created_at=r["created_at"],
         updated_at=r["updated_at"],
-        config=TenantConfig(**r["config_json"]),
+        config=_config_for_response(r["config_json"]),
     )
 
 
@@ -161,6 +201,10 @@ async def atualizar(
     user: Annotated[CurrentUser, Depends(superadmin_required)],
 ) -> TenantDetail:
     ip, ua = _client_meta(request)
+    # Se o PUT vem sem chave OpenAI nova (frontend não tocou no campo),
+    # reaproveita a chave já salva no DB para não exigir re-input a cada save.
+    await _merge_openai_key_se_omissa(tenant_id, payload)
+
     async with superadmin_session() as session:
         try:
             await admin_service.atualizar_tenant(
@@ -187,7 +231,7 @@ async def atualizar(
         enabled=r["enabled"],
         created_at=r["created_at"],
         updated_at=r["updated_at"],
-        config=TenantConfig(**r["config_json"]),
+        config=_config_for_response(r["config_json"]),
     )
 
 

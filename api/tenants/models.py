@@ -108,6 +108,39 @@ class TenantURLs(BaseModel):
 
 
 # =============================================================================
+# Integração OpenAI — chave própria do cliente OU compartilhada da Lello
+# =============================================================================
+class TenantOpenAIConfig(BaseModel):
+    """
+    Configuração da chave OpenAI usada pelo tenant.
+
+    - mode='lello': usa a chave global OPEN_AI_KEY do env (default).
+    - mode='custom': usa a chave do próprio cliente (`api_key` obrigatória).
+                     Útil quando o cliente quer billing separado da Lello.
+
+    Em produção, valores sensíveis devem ir pra Secrets Manager via
+    `secret_name`. Por ora, aceitamos `api_key` direto no JSON para DEV.
+    """
+
+    mode: Literal["lello", "custom"] = "lello"
+    api_key: str | None = None
+    secret_name: str | None = None
+
+    @field_validator("api_key")
+    @classmethod
+    def validar_api_key(cls, v: str | None) -> str | None:
+        if v is None or v == "":
+            return None
+        v = v.strip()
+        # Heurística: chaves OpenAI atuais começam com 'sk-'.
+        if not v.startswith("sk-"):
+            raise ValueError(
+                "api_key não parece uma chave OpenAI válida (deve começar com 'sk-')."
+            )
+        return v
+
+
+# =============================================================================
 # Configuração de RAG / Busca
 # =============================================================================
 class TenantRAGConfig(BaseModel):
@@ -156,6 +189,7 @@ class TenantConfig(BaseModel):
     datasource: DataSourceConfig = Field(..., discriminator="type")
     theme: TenantTheme = Field(default_factory=TenantTheme)
     rag: TenantRAGConfig = Field(default_factory=TenantRAGConfig)
+    openai: TenantOpenAIConfig = Field(default_factory=TenantOpenAIConfig)
 
     # Prompts customizados — cada tenant ajusta o tom e as regras do assistente.
     prompt_principal: str
@@ -199,5 +233,30 @@ class TenantConfig(BaseModel):
             "nome_empresa": self.nome_empresa,
             "enabled": self.enabled,
             "datasource_type": self.datasource.type,
+            "openai_mode": self.openai.mode,
             "schema_version": self.schema_version,
         }
+
+    def to_admin_dict(self) -> dict[str, Any]:
+        """
+        Versão segura para a UI de admin — mascara a api_key da OpenAI.
+        Mantém todo o resto inalterado.
+        """
+        from copy import deepcopy
+        d = self.model_dump(mode="json")
+        api_key = d.get("openai", {}).get("api_key")
+        if api_key:
+            d["openai"]["api_key"] = mascarar_openai_key(api_key)
+        return d
+
+
+def mascarar_openai_key(key: str) -> str:
+    """
+    Mascara chave OpenAI mostrando só os 7 primeiros e 4 últimos caracteres.
+    Ex: 'sk-proj-abcdef...wxyz'.
+    """
+    if not key:
+        return ""
+    if len(key) <= 11:
+        return "*" * len(key)
+    return f"{key[:7]}...{key[-4:]}"
