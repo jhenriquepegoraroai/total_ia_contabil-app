@@ -1,8 +1,10 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
-import { CheckCircle2, CircleSlash, Database, FileText, Users } from "lucide-react";
+import Link from "next/link";
+import { CheckCircle2, CircleSlash, Database, FileText, Pencil, Users } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -69,6 +71,11 @@ export default function TenantOverviewPage({
           </h1>
           <code className="text-sm text-muted-foreground">{summary.id}</code>
         </div>
+        <Button asChild variant="outline" size="sm">
+          <Link href={`/admin/tenants/${summary.id}/edit`}>
+            <Pencil className="h-3.5 w-3.5" /> Editar
+          </Link>
+        </Button>
       </div>
 
       {/* Métricas */}

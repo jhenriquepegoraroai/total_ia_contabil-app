@@ -19,13 +19,14 @@ import type { SourceConfigPayload, SourceType } from "@/lib/types";
 
 
 const TYPE_OPTIONS: { type: SourceType; label: string; description: string }[] = [
-  { type: "pdf_upload", label: "Upload de PDFs", description: "Você sobe os PDFs (atas, regulamentos, editais) manualmente." },
-  { type: "s3", label: "AWS S3", description: "Bucket do cliente. Ativação completa na Fase 6.2." },
-  { type: "azure_blob", label: "Azure Blob Storage", description: "Container Azure do cliente. Fase 6.2." },
-  { type: "postgres", label: "Postgres do cliente", description: "Conexão direta a banco AWS RDS / Azure DB. Testável agora." },
-  { type: "excel_upload", label: "Upload de Excel/CSV", description: "Planilhas com perguntas+respostas. Fase 6.1.5." },
-  { type: "sqlserver", label: "SQL Server", description: "Para clientes com base on-prem ou Azure SQL. Fase 6.2." },
-  { type: "databricks", label: "Databricks", description: "Compatibilidade com a Bella original da Lello." },
+  { type: "pdf_upload", label: "Upload de PDFs", description: "Suba PDFs (atas, regulamentos, editais) manualmente. Pronto para uso." },
+  { type: "excel_upload", label: "Upload de Excel", description: "Planilhas .xlsx com FAQ ou regras. Mapeie a coluna de texto." },
+  { type: "csv_upload", label: "Upload de CSV", description: "Idem Excel, em CSV. Delimitador configurável." },
+  { type: "s3", label: "AWS S3", description: "Bucket do cliente. Pronto para uso (IAM role ou keys)." },
+  { type: "azure_blob", label: "Azure Blob Storage", description: "Container Azure do cliente. Pronto para uso." },
+  { type: "postgres", label: "Postgres do cliente", description: "Conexão direta a AWS RDS / Azure DB. Testável agora." },
+  { type: "sqlserver", label: "SQL Server", description: "Para clientes com base on-prem ou Azure SQL. Em fase futura." },
+  { type: "databricks", label: "Databricks", description: "Compatibilidade com a Bella original da Lello. Fase futura." },
 ];
 
 
@@ -227,7 +228,10 @@ function DynamicConfigFields({
     case "csv_upload":
       return (
         <>
-          <Field label="Coluna de texto (obrigatório)">
+          <Field
+            label="Coluna de texto (obrigatório)"
+            hint="Nome da coluna que será indexada como conteúdo."
+          >
             <Input
               value={(value as Record<string, unknown>).coluna_texto as string ?? ""}
               onChange={(e) => set("coluna_texto", e.target.value)}
@@ -235,13 +239,49 @@ function DynamicConfigFields({
               required
             />
           </Field>
-          <Field label="Coluna de referência (opcional)">
+          <div className="grid sm:grid-cols-2 gap-4">
+            <Field
+              label="Coluna de referência (opcional)"
+              hint="Coluna que tem o ID do condomínio."
+            >
+              <Input
+                value={(value as Record<string, unknown>).coluna_referencia as string ?? ""}
+                onChange={(e) => set("coluna_referencia", e.target.value)}
+                placeholder="condominio_id"
+              />
+            </Field>
+            <Field
+              label="Coluna de data (opcional)"
+              hint="Coluna que tem a data do registro."
+            >
+              <Input
+                value={(value as Record<string, unknown>).coluna_data as string ?? ""}
+                onChange={(e) => set("coluna_data", e.target.value)}
+                placeholder="data"
+              />
+            </Field>
+          </div>
+          <Field
+            label="Referência default (opcional)"
+            hint="Usada quando a linha não traz o id do condomínio."
+          >
             <Input
-              value={(value as Record<string, unknown>).coluna_referencia as string ?? ""}
-              onChange={(e) => set("coluna_referencia", e.target.value)}
-              placeholder="condominio_id"
+              value={(value as Record<string, unknown>).referencia_default as string ?? ""}
+              onChange={(e) => set("referencia_default", e.target.value || null)}
+              placeholder="Ex: 12345"
             />
           </Field>
+          {tipo === "csv_upload" && (
+            <Field label="Delimitador" hint="Default: vírgula. Use ; para CSV brasileiro.">
+              <Input
+                value={(value as Record<string, unknown>).delimiter as string ?? ","}
+                onChange={(e) => set("delimiter", e.target.value)}
+                placeholder=","
+                maxLength={1}
+                className="max-w-[80px]"
+              />
+            </Field>
+          )}
         </>
       );
 

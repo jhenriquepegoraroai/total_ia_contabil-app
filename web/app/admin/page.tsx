@@ -140,7 +140,7 @@ export default function AdminTenantsPage() {
 
                 <div className="flex gap-2 pt-1">
                   <Button asChild variant="outline" size="sm" className="flex-1">
-                    <Link href={`/admin/tenants/${t.id}`}>Editar</Link>
+                    <Link href={`/admin/tenants/${t.id}`}>Abrir</Link>
                   </Button>
                   <Button
                     variant={t.enabled ? "outline" : "default"}
