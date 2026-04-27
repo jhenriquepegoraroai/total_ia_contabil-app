@@ -44,14 +44,42 @@ def _construir_connector(
 ) -> Connector:
     """Resolve o connector certo a partir do tipo da fonte + sua config."""
     if tipo == "pdf_upload":
-        # Lê do storage local — atalho síncrono, sem asyncio.run.
         storage = get_storage()
         if isinstance(storage, LocalStorage):
             prefix = tenant_source_prefix(tenant_id, source_id)
             return PdfFolderConnector(path=str(storage.root / prefix))
-        # Storage não-local: connector que usa asyncio.run internamente.
         return StoragePdfConnector(
             storage=storage, tenant_id=tenant_id, source_id=source_id
+        )
+
+    if tipo in ("excel_upload", "csv_upload"):
+        # Arquivos foram subidos via UI para o storage local; resolvemos
+        # o path absoluto e instanciamos o connector folder-based.
+        storage = get_storage()
+        if not isinstance(storage, LocalStorage):
+            raise NotImplementedError(
+                f"Tipo '{tipo}' com storage remoto ainda não suportado. "
+                "Use STORAGE_PROVIDER=local em DEV."
+            )
+        prefix = tenant_source_prefix(tenant_id, source_id)
+        local_path = storage.root / prefix
+        if tipo == "excel_upload":
+            from ingestion.connectors.excel import ExcelFolderConnector
+            return ExcelFolderConnector(
+                path=str(local_path),
+                coluna_texto=config_json["coluna_texto"],
+                coluna_referencia=config_json.get("coluna_referencia"),
+                coluna_data=config_json.get("coluna_data"),
+                referencia_default=config_json.get("referencia_default"),
+            )
+        from ingestion.connectors.csv_files import CsvFolderConnector
+        return CsvFolderConnector(
+            path=str(local_path),
+            coluna_texto=config_json["coluna_texto"],
+            coluna_referencia=config_json.get("coluna_referencia"),
+            coluna_data=config_json.get("coluna_data"),
+            referencia_default=config_json.get("referencia_default"),
+            delimiter=config_json.get("delimiter", ","),
         )
 
     if tipo == "postgres":
@@ -79,6 +107,16 @@ def _construir_connector(
             prefix=config_json.get("prefix", ""),
             access_key_id=config_json.get("access_key_id"),
             secret_access_key=config_json.get("secret_access_key"),
+        )
+
+    if tipo == "azure_blob":
+        from ingestion.connectors.azure_blob import AzureBlobPdfConnector
+        return AzureBlobPdfConnector(
+            account=config_json["account"],
+            container=config_json["container"],
+            prefix=config_json.get("prefix", ""),
+            sas_token=config_json.get("sas_token"),
+            account_key=config_json.get("account_key"),
         )
 
     raise ValueError(f"Tipo de connector desconhecido para ingestão: {tipo}")
@@ -156,10 +194,11 @@ async def disparar_job(
     if not row["enabled"]:
         raise ValueError("Source desabilitada.")
 
-    # Tipos suportados na Fase 6.2:
-    #   pdf_upload, postgres, s3 — rodam pipeline real.
-    #   demais — ainda em stub, recusar disparo.
-    suportados = {"pdf_upload", "postgres", "s3"}
+    # Tipos suportados (Fase 6.2 completa):
+    suportados = {
+        "pdf_upload", "excel_upload", "csv_upload",
+        "postgres", "s3", "azure_blob",
+    }
     if row["type"] not in suportados:
         raise ValueError(
             f"Disparo via UI ainda não disponível para tipo '{row['type']}'. "

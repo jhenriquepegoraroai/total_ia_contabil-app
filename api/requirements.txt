@@ -13,7 +13,8 @@ pypdf==5.1.0
 
 # Connectors externos (Fase 6.2)
 aioboto3==13.4.0           # AWS S3 (storage + connector)
-# azure-storage-blob>=12.20 # Azure Blob — em stub; descomentar ao ativar
+azure-storage-blob==12.24.0  # Azure Blob (storage + connector)
+openpyxl==3.1.5            # Excel/xlsx parser para connectors de planilha
 
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4

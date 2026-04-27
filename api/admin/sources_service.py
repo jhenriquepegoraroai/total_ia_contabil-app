@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .sources_models import (
     SourceConfig,
+    AzureBlobSourceConfig,
     PdfUploadConfig,
     PostgresSourceConfig,
     S3SourceConfig,
@@ -126,6 +127,9 @@ async def testar_conexao(config: SourceConfig) -> dict[str, Any]:
     if isinstance(config, S3SourceConfig):
         return await _testar_s3(config)
 
+    if isinstance(config, AzureBlobSourceConfig):
+        return await _testar_azure_blob(config)
+
     if isinstance(config, PostgresSourceConfig):
         return await _testar_postgres(config)
 
@@ -176,6 +180,50 @@ async def _testar_s3(config: S3SourceConfig) -> dict[str, Any]:
             "ok": False,
             "detail": f"Falha de conexão S3: {exc}",
             "metadata": {"bucket": config.bucket},
+        }
+
+
+async def _testar_azure_blob(config: AzureBlobSourceConfig) -> dict[str, Any]:
+    """List blobs com max=1 para validar conexão."""
+    try:
+        from azure.storage.blob.aio import BlobServiceClient
+        from azure.identity.aio import DefaultAzureCredential
+    except ImportError:
+        return {
+            "ok": False,
+            "detail": "azure-storage-blob não instalado nesta API.",
+            "metadata": {},
+        }
+
+    url = f"https://{config.account}.blob.core.windows.net"
+    try:
+        if config.sas_token:
+            client = BlobServiceClient(account_url=f"{url}?{config.sas_token}")
+        elif config.account_key:
+            client = BlobServiceClient(account_url=url, credential=config.account_key)
+        else:
+            client = BlobServiceClient(account_url=url, credential=DefaultAzureCredential())
+
+        async with client:
+            container = client.get_container_client(config.container)
+            count = 0
+            async for _ in container.list_blobs(name_starts_with=config.prefix or "", results_per_page=1):
+                count += 1
+                break
+
+        return {
+            "ok": True,
+            "detail": (
+                f"Container acessível. {'Pelo menos 1 blob encontrado' if count else 'Container vazio ou sem prefix correspondente'}."
+            ),
+            "metadata": {"account": config.account, "container": config.container},
+        }
+    except Exception as exc:
+        logger.warning(f"Falha testando Azure Blob: {exc}")
+        return {
+            "ok": False,
+            "detail": f"Falha de conexão Azure Blob: {exc}",
+            "metadata": {"account": config.account, "container": config.container},
         }
 
 
