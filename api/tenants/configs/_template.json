@@ -1,0 +1,70 @@
+{
+  "schema_version": "2.0",
+  "tenant_id": "exemplo",
+  "nome_empresa": "Administradora Exemplo",
+  "nome_assistente": "Assistente Virtual",
+  "enabled": false,
+
+  "contatos": {
+    "telefone": "(XX) XXXX-XXXX",
+    "whatsapp": "(XX) XXXXX-XXXX",
+    "whatsapp_link": "https://wa.me/55XXXXXXXXXX",
+    "email": "atendimento@exemplo.com.br",
+    "horario_atendimento": "Segunda a Sexta, das 8h30 às 19h."
+  },
+
+  "urls": {
+    "app_moradores": "https://app.exemplo.com.br",
+    "portal_resolva_facil": "https://portal.exemplo.com.br",
+    "prestacao_contas": null,
+    "cadastro_inquilino": null
+  },
+
+  "datasource": {
+    "type": "postgres_pgvector"
+  },
+
+  "theme": {
+    "primary": "#CB1D40",
+    "primary_foreground": "#FFFFFF",
+    "secondary": "#5D0E1F",
+    "secondary_foreground": "#FFFFFF",
+    "accent": "#F5B79E",
+    "accent_foreground": "#0E0E0E",
+    "ink": "#0E0E0E",
+    "muted": "#EDEDED",
+    "background": "#FFFFFF",
+    "logo_url": "/themes/exemplo/logo.svg",
+    "favicon_url": "/themes/exemplo/favicon.ico",
+    "font_family": "Inter, sans-serif"
+  },
+
+  "rag": {
+    "top_k": 8,
+    "similarity_threshold": 0.30,
+    "completion_temperature": 0.2
+  },
+
+  "schemas_estruturados": {
+    "condominios": "condominios",
+    "areas": "condominio_areas"
+  },
+
+  "prompt_principal": "TODO: Você é um assistente virtual de [NOME_EMPRESA]. Responda baseando-se exclusivamente no contexto fornecido. Cite as fontes...",
+  "prompt_formatacao": "TODO: Reformule a pergunta do usuário para busca em base de documentos de condomínio. Mantenha o significado original.",
+  "prompt_esclarecimento": "TODO: A pergunta está vaga. Peça ao usuário para especificar qual condomínio, qual período ou qual aspecto.",
+  "categorias_prompt": "TODO: Classifique a pergunta em uma das categorias: 0 - dados cadastrais, 42 - áreas comuns, 51 - assembleia, 65 - edital, 67 - data de edital, 68 - comparação edital/ata, esclarecimento - pergunta vaga, default - busca em documentos.",
+
+  "prompts_por_categoria": {
+    "0": "TODO: Prompt específico para cat 0 — dados cadastrais.",
+    "42": "TODO: Prompt específico para cat 42 — áreas comuns."
+  },
+
+  "respostas_padrao": {},
+
+  "resposta_sem_documento": "Não encontramos documentos para esse condomínio. Entre em contato com a administradora.",
+  "mensagem_nao_encontrada": "Não encontrei essa informação nos documentos. Recomendo entrar em contato com a administradora.",
+
+  "regra_concorrentes": "",
+  "leis_referencia": ""
+}

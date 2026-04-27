@@ -1,0 +1,203 @@
+"""
+TenantConfig — modelo de configuração de um tenant (administradora).
+
+Cada tenant tem um arquivo JSON em `api/tenants/configs/<tenant_id>.json`
+que é validado contra este schema no boot da aplicação.
+
+Estrutura geral:
+    - Identificação (tenant_id, nome_empresa, nome_assistente, enabled)
+    - Contatos da empresa (telefone, whatsapp, e-mail)
+    - URLs públicas (app, portal)
+    - Datasource (adapter Pattern — onde estão os dados deste tenant)
+    - Theme (identidade visual — sobrescreve o tema Lello padrão)
+    - Prompts customizados (categorias, principal, formatação, esclarecimento)
+    - Respostas padrão por categoria
+    - Mensagens de fallback
+    - Configurações de RAG (top_k, threshold)
+"""
+
+from datetime import datetime
+from typing import Any, Literal
+
+from pydantic import BaseModel, Field, field_validator
+
+
+# =============================================================================
+# Datasource — Adapter Pattern
+# =============================================================================
+class DataSourceConfigPostgres(BaseModel):
+    """Configuração para o adapter postgres_pgvector (default)."""
+
+    type: Literal["postgres_pgvector"] = "postgres_pgvector"
+    # Para o adapter default, usamos a connection string global da aplicação
+    # e os dados ficam segregados por tenant_id+RLS no mesmo banco.
+    # Tenants que precisem de banco dedicado podem subir variante futura
+    # `postgres_pgvector_dedicated` que aceita `database_url_secret`.
+
+
+class DataSourceConfigDatabricks(BaseModel):
+    """Configuração para o adapter databricks (legado Lello)."""
+
+    type: Literal["databricks"] = "databricks"
+    server_hostname_secret: str = Field(..., description="Nome do secret no Secrets Manager")
+    http_path_secret: str
+    access_token_secret: str
+    cluster_id_secret: str
+    table_embeddings: str
+    table_condominios: str
+    table_areas: str
+
+
+DataSourceConfig = DataSourceConfigPostgres | DataSourceConfigDatabricks
+
+
+# =============================================================================
+# Theme — identidade visual por tenant
+# =============================================================================
+class TenantTheme(BaseModel):
+    """Sobrescreve o tema Lello padrão. Hex codes em formato `#RRGGBB`."""
+
+    primary: str = "#CB1D40"
+    primary_foreground: str = "#FFFFFF"
+    secondary: str = "#5D0E1F"
+    secondary_foreground: str = "#FFFFFF"
+    accent: str = "#F5B79E"
+    accent_foreground: str = "#0E0E0E"
+    ink: str = "#0E0E0E"
+    muted: str = "#EDEDED"
+    background: str = "#FFFFFF"
+    logo_url: str = "/themes/lello/logo.svg"
+    favicon_url: str = "/themes/lello/favicon.ico"
+    font_family: str = "Inter, sans-serif"
+
+    @field_validator(
+        "primary",
+        "primary_foreground",
+        "secondary",
+        "secondary_foreground",
+        "accent",
+        "accent_foreground",
+        "ink",
+        "muted",
+        "background",
+    )
+    @classmethod
+    def validar_hex(cls, v: str) -> str:
+        v_clean = v.strip()
+        if not v_clean.startswith("#") or len(v_clean) not in (4, 7, 9):
+            raise ValueError(f"Cor deve ser hex (#RGB, #RRGGBB ou #RRGGBBAA), recebi: {v!r}")
+        return v_clean.upper()
+
+
+# =============================================================================
+# Contatos / URLs
+# =============================================================================
+class TenantContatos(BaseModel):
+    telefone: str
+    whatsapp: str
+    whatsapp_link: str
+    email: str
+    horario_atendimento: str = "Segunda a Sexta, das 8h30 às 19h."
+
+
+class TenantURLs(BaseModel):
+    app_moradores: str
+    portal_resolva_facil: str
+    prestacao_contas: str | None = None
+    cadastro_inquilino: str | None = None
+
+
+# =============================================================================
+# Configuração de RAG / Busca
+# =============================================================================
+class TenantRAGConfig(BaseModel):
+    """Defaults de RAG por tenant. Aplicação cai nestes valores se não vier override."""
+
+    top_k: int = 8
+    similarity_threshold: float = 0.30
+    completion_temperature: float = 0.2
+
+    @field_validator("similarity_threshold")
+    @classmethod
+    def validar_threshold(cls, v: float) -> float:
+        if not 0.0 <= v <= 1.0:
+            raise ValueError(f"similarity_threshold deve estar em [0.0, 1.0], recebi: {v}")
+        return v
+
+    @field_validator("top_k")
+    @classmethod
+    def validar_top_k(cls, v: int) -> int:
+        if not 1 <= v <= 50:
+            raise ValueError(f"top_k deve estar em [1, 50], recebi: {v}")
+        return v
+
+
+# =============================================================================
+# TenantConfig — agregado
+# =============================================================================
+class TenantConfig(BaseModel):
+    """
+    Configuração completa de um tenant. Carregada do JSON em `tenants/configs/`.
+
+    O campo `tenant_id` é a chave única usada em toda a aplicação (queries,
+    cache, RLS). Convenção: snake-lower, curto (ex: `lello`, `apsa`).
+    """
+
+    schema_version: str = Field(default="2.0", description="Versão do schema desta config")
+    tenant_id: str = Field(..., description="ID único do tenant", min_length=2, max_length=32)
+    nome_empresa: str
+    nome_assistente: str
+    enabled: bool = False
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+
+    contatos: TenantContatos
+    urls: TenantURLs
+    datasource: DataSourceConfig = Field(..., discriminator="type")
+    theme: TenantTheme = Field(default_factory=TenantTheme)
+    rag: TenantRAGConfig = Field(default_factory=TenantRAGConfig)
+
+    # Prompts customizados — cada tenant ajusta o tom e as regras do assistente.
+    prompt_principal: str
+    prompt_formatacao: str
+    prompt_esclarecimento: str
+    categorias_prompt: str
+
+    # Prompts opcionais por categoria (nem todo tenant tem cat 0/42).
+    prompts_por_categoria: dict[int, str] = Field(default_factory=dict)
+
+    # Respostas padrão por categoria (atalho — cai aqui antes de embeddings).
+    respostas_padrao: dict[int, str] = Field(default_factory=dict)
+
+    # Mensagens de fallback.
+    resposta_sem_documento: str
+    mensagem_nao_encontrada: str
+
+    # Regras textuais opcionais (concorrentes, leis, etc).
+    regra_concorrentes: str = ""
+    leis_referencia: str = ""
+
+    # Schemas estruturados que o tenant expõe (cat 0 e 42 da Lello, por exemplo).
+    # Chave = nome lógico ("condominios", "areas"); valor = nome real da tabela
+    # ou view no banco do tenant. O adapter resolve.
+    schemas_estruturados: dict[str, str] = Field(default_factory=dict)
+
+    @field_validator("tenant_id")
+    @classmethod
+    def validar_tenant_id(cls, v: str) -> str:
+        v_clean = v.strip().lower()
+        if not v_clean.replace("_", "").isalnum():
+            raise ValueError(
+                f"tenant_id deve conter apenas letras, números e underscore, recebi: {v!r}"
+            )
+        return v_clean
+
+    def to_audit_dict(self) -> dict[str, Any]:
+        """Versão segura para log/audit — sem prompts longos nem secrets."""
+        return {
+            "tenant_id": self.tenant_id,
+            "nome_empresa": self.nome_empresa,
+            "enabled": self.enabled,
+            "datasource_type": self.datasource.type,
+            "schema_version": self.schema_version,
+        }
