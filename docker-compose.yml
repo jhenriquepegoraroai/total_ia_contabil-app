@@ -1,0 +1,80 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: avc_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-avc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-avc_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-assistente_condominios}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-avc} -d ${POSTGRES_DB:-assistente_condominios}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: avc_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: avc_api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-avc}:${POSTGRES_PASSWORD:-avc_dev}@postgres:5432/${POSTGRES_DB:-assistente_condominios}
+      REDIS_URL: redis://redis:6379/0
+      OPEN_AI_KEY: ${OPEN_AI_KEY}
+      SECRET_KEY_JWT: ${SECRET_KEY_JWT}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./api:/app:ro
+      - ./api/tenants/configs:/app/tenants/configs:ro
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: avc_web
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      NODE_ENV: ${NODE_ENV:-development}
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./web:/app
+      - /app/node_modules
+      - /app/.next
+    command: npm run dev
+
+volumes:
+  postgres_data:
+  redis_data:
