@@ -14,6 +14,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { ApiError, devLogin, health, login } from "@/lib/api";
 import { LelloLogo } from "@/components/lello-logo";
 
@@ -187,9 +188,8 @@ function LoginInner() {
               <label htmlFor="password" className="text-sm font-medium">
                 Senha
               </label>
-              <Input
+              <PasswordInput
                 id="password"
-                type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required

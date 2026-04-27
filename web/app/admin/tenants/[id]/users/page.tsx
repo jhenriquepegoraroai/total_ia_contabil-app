@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ApiError,
@@ -209,8 +210,7 @@ function NovoUsuarioForm({
             </div>
             <div className="space-y-1">
               <label className="text-xs font-medium">Senha (mín. 8)</label>
-              <Input
-                type="password"
+              <PasswordInput
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 minLength={8}
@@ -378,8 +378,7 @@ function UserRow({
 
       {resetando && (
         <div className="mt-3 ml-12 flex items-center gap-2">
-          <Input
-            type="password"
+          <PasswordInput
             value={novaSenha}
             onChange={(e) => setNovaSenha(e.target.value)}
             placeholder="nova senha (mín. 8)"

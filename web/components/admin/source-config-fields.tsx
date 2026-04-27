@@ -1,6 +1,7 @@
 "use client";
 
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Textarea } from "@/components/ui/textarea";
 import type { SourceConfigPayload, SourceType } from "@/lib/types";
 
@@ -116,7 +117,7 @@ export function SourceConfigFields({
               <Input value={(value as any).access_key_id ?? ""} onChange={(e) => set("access_key_id", e.target.value)} />
             </Field>
             <Field label="Secret Access Key (DEV)">
-              <Input type="password" value={(value as any).secret_access_key ?? ""} onChange={(e) => set("secret_access_key", e.target.value)} />
+              <PasswordInput value={(value as any).secret_access_key ?? ""} onChange={(e) => set("secret_access_key", e.target.value)} />
             </Field>
           </div>
         </>
@@ -161,7 +162,7 @@ export function SourceConfigFields({
               <Input value={(value as any).user ?? ""} onChange={(e) => set("user", e.target.value)} required />
             </Field>
             <Field label="Senha (DEV)">
-              <Input type="password" value={(value as any).password ?? ""} onChange={(e) => set("password", e.target.value)} />
+              <PasswordInput value={(value as any).password ?? ""} onChange={(e) => set("password", e.target.value)} />
             </Field>
           </div>
           <Field label="Tabela (opcional)">
@@ -192,7 +193,7 @@ export function SourceConfigFields({
               <Input value={(value as any).user ?? ""} onChange={(e) => set("user", e.target.value)} required />
             </Field>
             <Field label="Senha (DEV)">
-              <Input type="password" value={(value as any).password ?? ""} onChange={(e) => set("password", e.target.value)} />
+              <PasswordInput value={(value as any).password ?? ""} onChange={(e) => set("password", e.target.value)} />
             </Field>
           </div>
         </>
