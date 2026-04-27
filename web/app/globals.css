@@ -1,0 +1,106 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===========================================================================
+ * Paleta Lello — calibrada visualmente do site oficial
+ * Valores em HSL (formato Tailwind/shadcn).
+ *
+ * Hex de origem (web/theme/lello.ts):
+ *   primary   = #CB1D40   →  hsl(347, 75%, 45%)
+ *   secondary = #5D0E1F   →  hsl(348, 74%, 21%)   (vinho/bordô)
+ *   accent    = #F5B79E   →  hsl(20, 81%, 79%)    (pêssego)
+ *   ink       = #0E0E0E   →  hsl(0, 0%, 5%)
+ *   muted     = #EDEDED   →  hsl(0, 0%, 93%)
+ *   border    = #E5E5E5   →  hsl(0, 0%, 90%)
+ * =========================================================================== */
+
+@layer base {
+  :root {
+    /* Backgrounds e foregrounds principais */
+    --background: 0 0% 100%;
+    --foreground: 0 0% 5%;
+
+    /* Cards e popovers seguem o background */
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 5%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 5%;
+
+    /* Primary — vermelho cereja Lello */
+    --primary: 347 75% 45%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary — vinho/bordô (CTAs secundários) */
+    --secondary: 348 74% 21%;
+    --secondary-foreground: 0 0% 100%;
+
+    /* Accent — pêssego (destaque suave) */
+    --accent: 20 81% 79%;
+    --accent-foreground: 0 0% 5%;
+
+    /* Muted — cinzas neutros */
+    --muted: 0 0% 93%;
+    --muted-foreground: 0 0% 35%;
+
+    /* Destructive — Lello é vermelha mesmo, então alinhamos com primary */
+    --destructive: 347 75% 45%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Border / input / ring */
+    --border: 0 0% 90%;
+    --input: 0 0% 90%;
+    --ring: 347 75% 45%;
+
+    /* Radius padrão — cantos suavemente arredondados, ~8px */
+    --radius: 0.5rem;
+
+    /* Font default — Inter como fallback até confirmar fonte oficial Lello */
+    --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+
+  .dark {
+    --background: 0 0% 7%;
+    --foreground: 0 0% 95%;
+
+    --card: 0 0% 10%;
+    --card-foreground: 0 0% 95%;
+    --popover: 0 0% 10%;
+    --popover-foreground: 0 0% 95%;
+
+    /* Em dark, o vermelho Lello fica um tom mais brilhante para legibilidade */
+    --primary: 347 80% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 348 60% 30%;
+    --secondary-foreground: 0 0% 95%;
+
+    --accent: 20 50% 55%;
+    --accent-foreground: 0 0% 5%;
+
+    --muted: 0 0% 18%;
+    --muted-foreground: 0 0% 65%;
+
+    --destructive: 347 80% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 0 0% 22%;
+    --input: 0 0% 22%;
+    --ring: 347 80% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  /* Inspirado no peso forte das headlines da Lello ("Viver o Condomínio Une!") */
+  h1, h2, h3, h4 {
+    @apply font-bold tracking-tight;
+  }
+}
