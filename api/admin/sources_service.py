@@ -101,6 +101,65 @@ async def criar_source(
         raise
 
 
+async def atualizar_source(
+    session: AsyncSession,
+    *,
+    tenant_id: str,
+    source_id: UUID,
+    name: str,
+    config: SourceConfig,
+    secret_name: str | None,
+    enabled: bool | None = None,
+) -> bool:
+    """
+    Atualiza uma fonte existente. O `type` da fonte é imutável — se a config
+    enviada for de outro tipo, levanta ValueError.
+    Retorna True se a row foi atualizada, False se a fonte não existe.
+    """
+    existing = await buscar_source(session, tenant_id, source_id)
+    if not existing:
+        return False
+    if existing["type"] != config.type:
+        raise ValueError(
+            f"Tipo da fonte é imutável: '{existing['type']}' != '{config.type}'. "
+            "Para mudar o tipo, delete e recrie a fonte."
+        )
+
+    try:
+        sql = text(
+            """
+            UPDATE tenant_data_sources SET
+                name = :nm,
+                config_json = CAST(:cj AS jsonb),
+                secret_name = :sn,
+                enabled = COALESCE(:en, enabled),
+                updated_at = NOW()
+            WHERE tenant_id = :tid AND id = :sid
+            """
+        )
+        result = await session.execute(
+            sql,
+            {
+                "tid": tenant_id,
+                "sid": str(source_id),
+                "nm": name,
+                "cj": config.model_dump_json(),
+                "sn": secret_name,
+                "en": enabled,
+            },
+        )
+        logger.info(
+            f"[sources] atualizada {source_id} ({config.type}) para tenant {tenant_id}"
+        )
+        return result.rowcount > 0
+    except Exception as exc:
+        if "duplicate key" in str(exc).lower() or "unique" in str(exc).lower():
+            raise ValueError(
+                f"Já existe outra fonte com nome '{name}' para o tenant '{tenant_id}'."
+            ) from exc
+        raise
+
+
 async def deletar_source(
     session: AsyncSession, tenant_id: str, source_id: UUID
 ) -> bool:

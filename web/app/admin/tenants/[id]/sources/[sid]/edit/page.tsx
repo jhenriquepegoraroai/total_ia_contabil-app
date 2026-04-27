@@ -2,8 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { use, useState } from "react";
-import { ChevronLeft, Save, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { use, useEffect, useState } from "react";
+import {
+  AlertCircle,
+  CheckCircle2,
+  ChevronLeft,
+  Loader2,
+  Save,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,42 +18,61 @@ import { Badge } from "@/components/ui/badge";
 import { Field, SourceConfigFields } from "@/components/admin/source-config-fields";
 import {
   ApiError,
-  adminCriarSource,
+  adminAtualizarSource,
+  adminBuscarSource,
   adminTestarConexao,
 } from "@/lib/api";
-import type { SourceConfigPayload, SourceType } from "@/lib/types";
+import type { SourceConfigPayload, SourceDetail, SourceType } from "@/lib/types";
 
 
-const TYPE_OPTIONS: { type: SourceType; label: string; description: string }[] = [
-  { type: "pdf_upload", label: "Upload de PDFs", description: "Suba PDFs (atas, regulamentos, editais) manualmente. Pronto para uso." },
-  { type: "excel_upload", label: "Upload de Excel", description: "Planilhas .xlsx com FAQ ou regras. Mapeie a coluna de texto." },
-  { type: "csv_upload", label: "Upload de CSV", description: "Idem Excel, em CSV. Delimitador configurável." },
-  { type: "s3", label: "AWS S3", description: "Bucket do cliente. Pronto para uso (IAM role ou keys)." },
-  { type: "azure_blob", label: "Azure Blob Storage", description: "Container Azure do cliente. Pronto para uso." },
-  { type: "postgres", label: "Postgres do cliente", description: "Conexão direta a AWS RDS / Azure DB. Testável agora." },
-  { type: "sqlserver", label: "SQL Server", description: "Para clientes com base on-prem ou Azure SQL. Em fase futura." },
-  { type: "databricks", label: "Databricks", description: "Compatibilidade com a Bella original da Lello. Fase futura." },
-];
+const TYPE_LABELS: Record<SourceType, string> = {
+  pdf_upload: "Upload de PDFs",
+  excel_upload: "Upload de Excel",
+  csv_upload: "Upload de CSV",
+  s3: "AWS S3",
+  azure_blob: "Azure Blob Storage",
+  postgres: "Postgres",
+  sqlserver: "SQL Server",
+  databricks: "Databricks",
+};
 
 
-export default function NewSourcePage({
+export default function EditSourcePage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ id: string; sid: string }>;
 }) {
-  const { id: tenantId } = use(params);
+  const { id: tenantId, sid: sourceId } = use(params);
   const router = useRouter();
 
-  const [tipo, setTipo] = useState<SourceType>("pdf_upload");
+  const [source, setSource] = useState<SourceDetail | null>(null);
+  const [carregando, setCarregando] = useState(true);
+  const [erroCarga, setErroCarga] = useState<string | null>(null);
+
   const [nome, setNome] = useState("");
   const [config, setConfig] = useState<Partial<SourceConfigPayload>>({});
+  const [habilitada, setHabilitada] = useState(true);
+
   const [enviando, setEnviando] = useState(false);
   const [testando, setTestando] = useState(false);
   const [resultadoTest, setResultadoTest] = useState<{ ok: boolean; detail: string } | null>(null);
   const [erro, setErro] = useState<string | null>(null);
 
+  useEffect(() => {
+    adminBuscarSource(tenantId, sourceId)
+      .then((s) => {
+        setSource(s);
+        setNome(s.name);
+        setConfig({ ...(s.config as object), type: s.type } as Partial<SourceConfigPayload>);
+        setHabilitada(s.enabled);
+      })
+      .catch((err) => setErroCarga(err instanceof ApiError ? err.message : String(err)))
+      .finally(() => setCarregando(false));
+  }, [tenantId, sourceId]);
+
   function buildConfig(): SourceConfigPayload {
-    return { ...(config as object), type: tipo } as SourceConfigPayload;
+    if (!source) throw new Error("source ainda não carregada");
+    return { ...(config as object), type: source.type } as SourceConfigPayload;
   }
 
   async function testar() {
@@ -69,9 +94,10 @@ export default function NewSourcePage({
     setErro(null);
     setEnviando(true);
     try {
-      await adminCriarSource(tenantId, {
+      await adminAtualizarSource(tenantId, sourceId, {
         name: nome.trim(),
         config: buildConfig(),
+        enabled: habilitada,
       });
       router.replace(`/admin/tenants/${tenantId}/sources`);
     } catch (err) {
@@ -81,7 +107,27 @@ export default function NewSourcePage({
     }
   }
 
-  const opcaoSelecionada = TYPE_OPTIONS.find((o) => o.type === tipo)!;
+  if (carregando) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" /> Carregando fonte…
+      </div>
+    );
+  }
+
+  if (erroCarga || !source) {
+    return (
+      <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+        {erroCarga ?? "Fonte não encontrada."}
+      </div>
+    );
+  }
+
+  const tipoExterno =
+    source.type === "postgres" ||
+    source.type === "s3" ||
+    source.type === "sqlserver" ||
+    source.type === "azure_blob";
 
   return (
     <>
@@ -91,68 +137,55 @@ export default function NewSourcePage({
       >
         <ChevronLeft className="h-3 w-3" /> Voltar
       </Link>
-      <h1 className="text-2xl font-bold">Nova fonte de dados</h1>
+      <h1 className="text-2xl font-bold flex items-center gap-2">
+        Editar fonte
+        <Badge variant="outline" className="text-xs font-normal">
+          {TYPE_LABELS[source.type]}
+        </Badge>
+      </h1>
       <p className="text-sm text-muted-foreground mt-1 mb-6">
-        Cadastre uma origem de documentos. Você poderá testar a conexão e
-        depois disparar a ingestão para popular os embeddings.
+        Ajuste nome ou configuração. O tipo da fonte é imutável — para mudar
+        o tipo, delete e recrie.
       </p>
 
       <form onSubmit={onSubmit} className="space-y-6 max-w-3xl">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Tipo da fonte</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {TYPE_OPTIONS.map((opt) => (
-                <button
-                  key={opt.type}
-                  type="button"
-                  onClick={() => {
-                    setTipo(opt.type);
-                    setConfig({});
-                    setResultadoTest(null);
-                  }}
-                  className={`text-left rounded-md border p-3 transition-colors ${
-                    tipo === opt.type
-                      ? "border-primary bg-primary/5"
-                      : "hover:bg-accent/30"
-                  }`}
-                >
-                  <div className="font-medium text-sm flex items-center gap-2">
-                    {opt.label}
-                    {tipo === opt.type && (
-                      <Badge variant="default" className="text-[9px] py-0">selecionado</Badge>
-                    )}
-                  </div>
-                  <div className="text-xs text-muted-foreground mt-0.5">
-                    {opt.description}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
             <CardTitle className="text-base">Configuração</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Field label="Nome da fonte" hint="Identificação interna. Ex: 'Atas 2024' ou 'RDS produção'.">
+            <Field label="Nome da fonte">
               <Input
                 value={nome}
                 onChange={(e) => setNome(e.target.value)}
-                placeholder="Ex: PDFs internos"
                 required
               />
             </Field>
 
-            <SourceConfigFields tipo={tipo} value={config} onChange={setConfig} />
+            <SourceConfigFields
+              tipo={source.type}
+              value={config}
+              onChange={setConfig}
+            />
+
+            <Field
+              label="Status"
+              hint="Fontes desabilitadas não aparecem para o RAG até serem reabilitadas."
+            >
+              <label className="inline-flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={habilitada}
+                  onChange={(e) => setHabilitada(e.target.checked)}
+                  className="h-4 w-4 rounded border-input"
+                />
+                Fonte habilitada
+              </label>
+            </Field>
           </CardContent>
         </Card>
 
-        {(tipo === "postgres" || tipo === "s3" || tipo === "sqlserver" || tipo === "azure_blob") && (
+        {tipoExterno && (
           <div className="flex items-center gap-3">
             <Button type="button" variant="outline" onClick={testar} disabled={testando}>
               {testando ? <Loader2 className="animate-spin" /> : null}
@@ -187,12 +220,10 @@ export default function NewSourcePage({
           </Button>
           <Button type="submit" disabled={enviando}>
             {enviando ? <Loader2 className="animate-spin" /> : <Save />}
-            Criar fonte
+            Salvar alterações
           </Button>
         </div>
       </form>
     </>
   );
 }
-
-

@@ -213,6 +213,25 @@ export async function adminCriarSource(
   });
 }
 
+export async function adminAtualizarSource(
+  tenantId: string,
+  sourceId: string,
+  body: {
+    name: string;
+    config: SourceConfigPayload;
+    secret_name?: string | null;
+    enabled?: boolean | null;
+  }
+): Promise<SourceDetail> {
+  return request<SourceDetail>(
+    `/admin/tenants/${encodeURIComponent(tenantId)}/sources/${sourceId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }
+  );
+}
+
 export async function adminDeletarSource(
   tenantId: string,
   sourceId: string

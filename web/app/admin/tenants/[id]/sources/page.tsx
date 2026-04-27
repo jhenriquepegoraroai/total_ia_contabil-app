@@ -9,6 +9,7 @@ import {
   FileSpreadsheet,
   FileText,
   Loader2,
+  Pencil,
   Play,
   Plus,
   Trash2,
@@ -256,6 +257,11 @@ function SourceActions({
           Executar ingestão
         </Button>
       )}
+      <Button variant="ghost" size="icon" asChild title="Editar">
+        <Link href={`/admin/tenants/${tenantId}/sources/${source.id}/edit`}>
+          <Pencil className="h-4 w-4" />
+        </Link>
+      </Button>
       <Button variant="ghost" size="icon" onClick={remover} disabled={removendo} title="Remover">
         {removendo ? <Loader2 className="animate-spin h-4 w-4" /> : <Trash2 className="h-4 w-4" />}
       </Button>

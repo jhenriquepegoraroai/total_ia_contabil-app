@@ -129,6 +129,56 @@ async def criar_source(
     )
 
 
+class UpdateSourceRequest(BaseModel):
+    name: str
+    config: SourceConfig
+    secret_name: str | None = None
+    enabled: bool | None = None
+
+
+@router.patch(
+    "/tenants/{tenant_id}/sources/{source_id}", response_model=SourceDetail
+)
+async def atualizar_source(
+    tenant_id: str,
+    source_id: UUID,
+    payload: UpdateSourceRequest,
+    user: Annotated[CurrentUser, Depends(superadmin_required)],
+) -> SourceDetail:
+    async with superadmin_session() as session:
+        try:
+            ok = await sources_service.atualizar_source(
+                session,
+                tenant_id=tenant_id,
+                source_id=source_id,
+                name=payload.name,
+                config=payload.config,
+                secret_name=payload.secret_name,
+                enabled=payload.enabled,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if not ok:
+            raise HTTPException(status_code=404, detail="Fonte não encontrada.")
+        row = await sources_service.buscar_source(session, tenant_id, source_id)
+
+    assert row is not None
+    return SourceDetail(
+        id=row["id"],
+        tenant_id=row["tenant_id"],
+        name=row["name"],
+        type=row["type"],
+        config=row["config_json"] or {},
+        secret_name=row["secret_name"],
+        enabled=row["enabled"],
+        qtde_files=row["qtde_files"],
+        last_run_at=row["last_run_at"],
+        last_run_status=row["last_run_status"],
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
+
 @router.delete("/tenants/{tenant_id}/sources/{source_id}", status_code=204)
 async def deletar_source(
     tenant_id: str,
