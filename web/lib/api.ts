@@ -10,6 +10,7 @@ import type {
   AuditEntry,
   ChatRequest,
   ChatResponse,
+  CreateUserPayload,
   HealthResponse,
   IngestionJob,
   SourceConfigPayload,
@@ -18,8 +19,10 @@ import type {
   SourceSummary,
   TenantConfig,
   TenantSummary,
+  TenantUser,
   TestConnectionResult,
   TokenResponse,
+  UpdateUserPayload,
 } from "./types";
 
 const API_BASE = "/api";
@@ -289,6 +292,55 @@ export async function adminBuscarJob(
 ): Promise<IngestionJob> {
   return request<IngestionJob>(
     `/admin/tenants/${encodeURIComponent(tenantId)}/ingestions/${jobId}`
+  );
+}
+
+// ===========================================================================
+// Admin — usuários do tenant
+// ===========================================================================
+export async function adminListarUsuarios(tenantId: string): Promise<TenantUser[]> {
+  return request<TenantUser[]>(`/admin/tenants/${encodeURIComponent(tenantId)}/users`);
+}
+
+export async function adminCriarUsuario(
+  tenantId: string,
+  payload: CreateUserPayload
+): Promise<TenantUser> {
+  return request<TenantUser>(
+    `/admin/tenants/${encodeURIComponent(tenantId)}/users`,
+    { method: "POST", body: JSON.stringify(payload) }
+  );
+}
+
+export async function adminAtualizarUsuario(
+  tenantId: string,
+  userId: string,
+  payload: UpdateUserPayload
+): Promise<TenantUser> {
+  return request<TenantUser>(
+    `/admin/tenants/${encodeURIComponent(tenantId)}/users/${userId}`,
+    { method: "PATCH", body: JSON.stringify(payload) }
+  );
+}
+
+export async function adminResetarSenha(
+  tenantId: string,
+  userId: string,
+  novaSenha: string
+): Promise<void> {
+  await request<void>(
+    `/admin/tenants/${encodeURIComponent(tenantId)}/users/${userId}/password`,
+    { method: "PATCH", body: JSON.stringify({ nova_senha: novaSenha }) }
+  );
+}
+
+export async function adminDeletarUsuario(
+  tenantId: string,
+  userId: string
+): Promise<void> {
+  await request<void>(
+    `/admin/tenants/${encodeURIComponent(tenantId)}/users/${userId}`,
+    { method: "DELETE" }
   );
 }
 

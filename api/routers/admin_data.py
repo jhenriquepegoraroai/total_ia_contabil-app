@@ -28,6 +28,7 @@ from pydantic import BaseModel
 from api.admin import (
     ingestion_service,
     sources_service,
+    users_service,
 )
 from api.admin.sources_models import (
     CreateSourceRequest,
@@ -390,3 +391,136 @@ def _normalize_job(job: dict[str, Any]) -> dict[str, Any]:
     if out.get("duracao_segundos") is not None:
         out["duracao_segundos"] = float(out["duracao_segundos"])
     return out
+
+
+# =============================================================================
+# Users (gerenciar via UI superadmin)
+# =============================================================================
+class UserOut(BaseModel):
+    id: UUID
+    tenant_id: str
+    email: str
+    nome: str
+    role: str
+    enabled: bool
+    is_superadmin: bool
+    tem_senha: bool
+    created_at: datetime
+
+
+class CreateUserRequest(BaseModel):
+    email: str
+    nome: str
+    role: str = "morador"
+    password: str
+
+
+class UpdateUserRequest(BaseModel):
+    nome: str | None = None
+    role: str | None = None
+    enabled: bool | None = None
+
+
+class ResetPasswordRequest(BaseModel):
+    nova_senha: str
+
+
+@router.get("/tenants/{tenant_id}/users", response_model=list[UserOut])
+async def listar_usuarios(
+    tenant_id: str,
+    user: Annotated[CurrentUser, Depends(superadmin_required)],
+) -> list[UserOut]:
+    async with superadmin_session() as session:
+        rows = await users_service.listar_users(session, tenant_id)
+    return [UserOut(**r) for r in rows]
+
+
+@router.post(
+    "/tenants/{tenant_id}/users",
+    response_model=UserOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def criar_usuario(
+    tenant_id: str,
+    payload: CreateUserRequest,
+    user: Annotated[CurrentUser, Depends(superadmin_required)],
+) -> UserOut:
+    async with superadmin_session() as session:
+        try:
+            new_id = await users_service.criar_user(
+                session,
+                tenant_id=tenant_id,
+                email=payload.email.strip().lower(),
+                nome=payload.nome.strip(),
+                role=payload.role,
+                password=payload.password,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        row = await users_service.buscar_user(session, tenant_id, new_id)
+    assert row is not None
+    return UserOut(**row)
+
+
+@router.patch("/tenants/{tenant_id}/users/{user_id}", response_model=UserOut)
+async def atualizar_usuario(
+    tenant_id: str,
+    user_id: UUID,
+    payload: UpdateUserRequest,
+    user: Annotated[CurrentUser, Depends(superadmin_required)],
+) -> UserOut:
+    async with superadmin_session() as session:
+        try:
+            ok = await users_service.atualizar_user(
+                session,
+                tenant_id=tenant_id,
+                user_id=user_id,
+                nome=payload.nome,
+                role=payload.role,
+                enabled=payload.enabled,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if not ok:
+            raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+        row = await users_service.buscar_user(session, tenant_id, user_id)
+    assert row is not None
+    return UserOut(**row)
+
+
+@router.patch("/tenants/{tenant_id}/users/{user_id}/password", status_code=204)
+async def resetar_senha(
+    tenant_id: str,
+    user_id: UUID,
+    payload: ResetPasswordRequest,
+    user: Annotated[CurrentUser, Depends(superadmin_required)],
+) -> None:
+    async with superadmin_session() as session:
+        try:
+            ok = await users_service.resetar_senha(
+                session,
+                tenant_id=tenant_id,
+                user_id=user_id,
+                nova_senha=payload.nova_senha,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if not ok:
+            raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+
+
+@router.delete("/tenants/{tenant_id}/users/{user_id}", status_code=204)
+async def deletar_usuario(
+    tenant_id: str,
+    user_id: UUID,
+    user: Annotated[CurrentUser, Depends(superadmin_required)],
+) -> None:
+    async with superadmin_session() as session:
+        try:
+            ok = await users_service.deletar_user(
+                session, tenant_id=tenant_id, user_id=user_id
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if not ok:
+            raise HTTPException(status_code=404, detail="Usuário não encontrado.")

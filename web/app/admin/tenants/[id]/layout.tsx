@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { use } from "react";
-import { Building2, Database, History, ChevronLeft } from "lucide-react";
+import { Building2, Database, History, ChevronLeft, Users as UsersIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
 const TABS = [
   { suffix: "", label: "Visão geral", icon: Building2 },
   { suffix: "/sources", label: "Fontes de dados", icon: Database },
+  { suffix: "/users", label: "Usuários", icon: UsersIcon },
   { suffix: "/jobs", label: "Histórico de jobs", icon: History },
 ];
 

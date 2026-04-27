@@ -205,6 +205,36 @@ export interface TestConnectionResult {
   metadata: Record<string, unknown>;
 }
 
+// =============================================================================
+// Users (gerenciar via UI superadmin)
+// =============================================================================
+export type UserRole = "admin" | "sindico" | "atendente" | "morador";
+
+export interface TenantUser {
+  id: string;
+  tenant_id: string;
+  email: string;
+  nome: string;
+  role: UserRole;
+  enabled: boolean;
+  is_superadmin: boolean;
+  tem_senha: boolean;
+  created_at: string;
+}
+
+export interface CreateUserPayload {
+  email: string;
+  nome: string;
+  role: UserRole;
+  password: string;
+}
+
+export interface UpdateUserPayload {
+  nome?: string;
+  role?: UserRole;
+  enabled?: boolean;
+}
+
 export interface HealthResponse {
   status: string;
   db: string;
