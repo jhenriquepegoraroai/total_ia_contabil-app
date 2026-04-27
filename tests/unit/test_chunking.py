@@ -19,9 +19,19 @@ def test_texto_vazio_retorna_vazio():
 
 
 def test_texto_extremamente_longo_e_truncado():
-    # ~1 token por caractere em ASCII; "aaaaa..." tem ~tamanho/1 tokens.
-    # 30000 chars >> 8191 tokens.
-    texto_longo = "a" * 30000
+    # NÃO usar "a" * N: o BPE do text-embedding-3-large compacta repetições
+    # (30000 'a's vira ~3750 tokens). Precisa texto diverso para exceder
+    # EMBEDDING_MAX_TOKENS (8191).
+    import random, string
+
+    random.seed(0)
+    palavras = [
+        "".join(random.choices(string.ascii_lowercase, k=5))
+        for _ in range(15000)
+    ]
+    texto_longo = " ".join(palavras)
+    assert contar_tokens(texto_longo) > EMBEDDING_MAX_TOKENS  # sanidade
+
     truncado = truncar_para_limite_tokens(texto_longo)
 
     assert len(truncado) < len(texto_longo)

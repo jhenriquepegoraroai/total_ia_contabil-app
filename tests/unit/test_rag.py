@@ -109,15 +109,56 @@ async def test_dados_estruturados_cat_0(tenant_config_factory, mock_llm, mock_da
 
 
 @pytest.mark.asyncio
-async def test_dados_estruturados_vazio_retorna_resposta_sem_documento(
+async def test_dados_estruturados_vazio_cai_em_embeddings(
     tenant_config_factory, mock_llm, mock_datasource
 ):
+    """
+    Quando a tabela estruturada não tem registro pra essa referência, em
+    vez de retornar 'sem documento' direto, o RAG cai em busca por
+    embeddings — útil quando a info está em PDF (ex: nome do síndico
+    na ata) mesmo que falte no cadastro estruturado.
+    """
     config = tenant_config_factory(
         schemas_estruturados={"condominios": "condominios"},
-        resposta_sem_documento="Sem dados pra essa referência.",
+        mensagem_nao_encontrada="Não encontrado.",
     )
     mock_llm.classificar.return_value = "0"
     mock_datasource.buscar_dados_estruturados.return_value = []
+    mock_datasource.busca_similaridade.return_value = [
+        {
+            "file_name": "ata.pdf",
+            "record_id": "p1",
+            "paragraph": "O síndico atual é o Sr. Silva.",
+            "data_valida": date(2024, 1, 1),
+            "similarity": 0.85,
+        }
+    ]
+
+    resp = await responder(
+        pergunta="quem é o síndico?",
+        referencia="111",
+        tenant_config=config,
+        datasource=mock_datasource,
+        llm=mock_llm,
+    )
+    assert resp.via == "embeddings"
+    mock_datasource.busca_similaridade.assert_awaited()
+    mock_llm.gerar_resposta.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_estruturado_e_embeddings_vazios_retorna_nao_encontrado(
+    tenant_config_factory, mock_llm, mock_datasource
+):
+    """Se até o fallback de embeddings vier vazio, aí sim caímos no
+    'mensagem_nao_encontrada' configurado."""
+    config = tenant_config_factory(
+        schemas_estruturados={"condominios": "condominios"},
+        mensagem_nao_encontrada="Sem informação pra esse condomínio.",
+    )
+    mock_llm.classificar.return_value = "0"
+    mock_datasource.buscar_dados_estruturados.return_value = []
+    mock_datasource.busca_similaridade.return_value = []
 
     resp = await responder(
         pergunta="x",
@@ -126,7 +167,7 @@ async def test_dados_estruturados_vazio_retorna_resposta_sem_documento(
         datasource=mock_datasource,
         llm=mock_llm,
     )
-    assert resp.resposta == "Sem dados pra essa referência."
+    assert resp.resposta == "Sem informação pra esse condomínio."
     mock_llm.gerar_resposta.assert_not_called()
 
 
