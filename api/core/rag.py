@@ -190,10 +190,21 @@ async def _responder_estruturado(
 ) -> RAGResposta:
     rows = await datasource.buscar_dados_estruturados(schema_key, referencia)
     if not rows:
-        return RAGResposta(
-            resposta=tenant_config.resposta_sem_documento,
+        # Fallback: a categoria pediu dado estruturado mas não há cadastro
+        # para esta referência. Em vez de devolver "sem documento", tenta
+        # responder com busca por embeddings nos documentos do condomínio.
+        # Útil quando a info pedida (ex: nome do síndico) está só na ata.
+        logger.info(
+            f"[{tenant_config.tenant_id}] estruturado vazio para "
+            f"schema={schema_key} ref={referencia} → fallback para embeddings"
+        )
+        return await _responder_embeddings(
             categoria=categoria,
-            via="estruturado",
+            pergunta=pergunta,
+            referencia=referencia,
+            tenant_config=tenant_config,
+            datasource=datasource,
+            llm=llm,
         )
 
     contexto = _formatar_dados_estruturados(rows)
