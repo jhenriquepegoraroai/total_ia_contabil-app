@@ -235,6 +235,53 @@ export interface UpdateUserPayload {
   enabled?: boolean;
 }
 
+// =============================================================================
+// Histórico de conversas (admin)
+// =============================================================================
+export interface ChatSessionSummary {
+  id: string;
+  tenant_id: string;
+  user_id: string | null;
+  user_email: string | null;
+  user_nome: string | null;
+  referencia: string | null;
+  started_at: string;
+  ended_at: string | null;
+  qtde_mensagens: number;
+  primeira_pergunta: string | null;
+  ultima_at: string | null;
+}
+
+export interface ChatCitationDetail {
+  file_name: string;
+  record_id: string | null;
+  data_valida: string | null;
+  similarity: number | null;
+  rank_position: number;
+}
+
+export interface ChatMessageDetail {
+  id: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  categoria: number | null;
+  trace_id: string | null;
+  created_at: string;
+  citacoes: ChatCitationDetail[];
+}
+
+export interface ChatSessionDetail {
+  id: string;
+  tenant_id: string;
+  user_id: string | null;
+  user_email: string | null;
+  user_nome: string | null;
+  referencia: string | null;
+  started_at: string;
+  ended_at: string | null;
+  mensagens: ChatMessageDetail[];
+}
+
 export interface HealthResponse {
   status: string;
   db: string;

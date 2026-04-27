@@ -10,6 +10,8 @@ import type {
   AuditEntry,
   ChatRequest,
   ChatResponse,
+  ChatSessionDetail,
+  ChatSessionSummary,
   CreateUserPayload,
   HealthResponse,
   IngestionJob,
@@ -341,6 +343,31 @@ export async function adminDeletarUsuario(
   await request<void>(
     `/admin/tenants/${encodeURIComponent(tenantId)}/users/${userId}`,
     { method: "DELETE" }
+  );
+}
+
+// ===========================================================================
+// Admin — histórico de conversas
+// ===========================================================================
+export async function adminListarChats(
+  tenantId: string,
+  params?: { limit?: number; referencia?: string }
+): Promise<ChatSessionSummary[]> {
+  const qs = new URLSearchParams();
+  if (params?.limit) qs.set("limit", String(params.limit));
+  if (params?.referencia) qs.set("referencia", params.referencia);
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return request<ChatSessionSummary[]>(
+    `/admin/tenants/${encodeURIComponent(tenantId)}/chats${suffix}`
+  );
+}
+
+export async function adminBuscarChat(
+  tenantId: string,
+  sessionId: string
+): Promise<ChatSessionDetail> {
+  return request<ChatSessionDetail>(
+    `/admin/tenants/${encodeURIComponent(tenantId)}/chats/${sessionId}`
   );
 }
 

@@ -26,6 +26,7 @@ from loguru import logger
 from pydantic import BaseModel
 
 from api.admin import (
+    chats_service,
     ingestion_service,
     sources_service,
     users_service,
@@ -524,3 +525,90 @@ async def deletar_usuario(
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         if not ok:
             raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+
+
+# =============================================================================
+# Histórico de conversas (chat sessions)
+# =============================================================================
+class ChatSessionSummary(BaseModel):
+    id: UUID
+    tenant_id: str
+    user_id: UUID | None
+    user_email: str | None = None
+    user_nome: str | None = None
+    referencia: str | None
+    started_at: datetime
+    ended_at: datetime | None
+    qtde_mensagens: int
+    primeira_pergunta: str | None
+    ultima_at: datetime | None
+
+
+class ChatCitationOut(BaseModel):
+    file_name: str
+    record_id: str | None = None
+    data_valida: str | None = None
+    similarity: float | None = None
+    rank_position: int
+
+
+class ChatMessageOut(BaseModel):
+    id: UUID
+    role: str
+    content: str
+    categoria: int | None
+    trace_id: str | None
+    created_at: datetime
+    citacoes: list[ChatCitationOut] = []
+
+
+class ChatSessionDetail(BaseModel):
+    id: UUID
+    tenant_id: str
+    user_id: UUID | None
+    user_email: str | None = None
+    user_nome: str | None = None
+    referencia: str | None
+    started_at: datetime
+    ended_at: datetime | None
+    mensagens: list[ChatMessageOut]
+
+
+@router.get("/tenants/{tenant_id}/chats", response_model=list[ChatSessionSummary])
+async def listar_chats(
+    tenant_id: str,
+    user: Annotated[CurrentUser, Depends(superadmin_required)],
+    referencia: str | None = None,
+    limit: int = Query(default=100, ge=1, le=500),
+) -> list[ChatSessionSummary]:
+    async with superadmin_session() as session:
+        rows = await chats_service.listar_sessions(
+            session, tenant_id, limit=limit, referencia=referencia
+        )
+    return [ChatSessionSummary(**r) for r in rows]
+
+
+@router.get(
+    "/tenants/{tenant_id}/chats/{session_id}",
+    response_model=ChatSessionDetail,
+)
+async def buscar_chat(
+    tenant_id: str,
+    session_id: UUID,
+    user: Annotated[CurrentUser, Depends(superadmin_required)],
+) -> ChatSessionDetail:
+    async with superadmin_session() as session:
+        data = await chats_service.buscar_session_com_mensagens(
+            session, tenant_id, session_id
+        )
+    if not data:
+        raise HTTPException(status_code=404, detail="Conversa não encontrada.")
+
+    # Normaliza datas de citação (data_valida vem como date)
+    for m in data["mensagens"]:
+        for c in m.get("citacoes", []):
+            if c.get("data_valida") and hasattr(c["data_valida"], "isoformat"):
+                c["data_valida"] = c["data_valida"].isoformat()
+            if c.get("similarity") is not None:
+                c["similarity"] = float(c["similarity"])
+    return ChatSessionDetail(**data)
