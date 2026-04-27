@@ -115,7 +115,7 @@ export async function health(): Promise<HealthResponse> {
 // =============================================================================
 // Admin endpoints
 // =============================================================================
-import type { TenantConfig, TenantSummary } from "./types";
+import type { AuditEntry, TenantConfig, TenantSummary } from "./types";
 
 export async function adminListarTenants(): Promise<TenantSummary[]> {
   return request<TenantSummary[]>("/admin/tenants");
@@ -160,6 +160,17 @@ export async function adminToggleEnabled(
       body: JSON.stringify({ enabled }),
     }
   );
+}
+
+export async function adminListarAudit(params?: {
+  limit?: number;
+  target_tenant_id?: string;
+}): Promise<AuditEntry[]> {
+  const qs = new URLSearchParams();
+  if (params?.limit) qs.set("limit", String(params.limit));
+  if (params?.target_tenant_id) qs.set("target_tenant_id", params.target_tenant_id);
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return request<AuditEntry[]>(`/admin/audit${suffix}`);
 }
 
 export { ApiError };

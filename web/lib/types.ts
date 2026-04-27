@@ -103,6 +103,24 @@ export interface TenantConfig {
   leis_referencia?: string;
 }
 
+export interface AuditEntry {
+  id: number;
+  actor_user_id: string;
+  actor_email: string;
+  action:
+    | "tenant_create"
+    | "tenant_update"
+    | "tenant_enable"
+    | "tenant_disable"
+    | "tenant_delete"
+    | "superadmin_login";
+  target_tenant_id: string | null;
+  payload: Record<string, unknown> | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  created_at: string;
+}
+
 export interface HealthResponse {
   status: string;
   db: string;
