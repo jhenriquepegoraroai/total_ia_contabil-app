@@ -18,20 +18,26 @@ from typing import Iterator
 
 @dataclass(frozen=True, slots=True)
 class RawChunk:
-    """Um parágrafo extraído do connector, pronto para embedding."""
+    """
+    Um parágrafo extraído do connector, pronto para embedding.
+
+    Quando `referencia` vem preenchido (ex: `PostgresConnector` sabe a qual
+    condomínio cada linha pertence), o pipeline usa esse valor. Se vier
+    `None` (caso típico do `PdfFolderConnector`), o pipeline usa a referência
+    default passada na execução.
+    """
 
     file_name: str
     record_id: str
     paragraph: str
     data_valida: date | None = None
+    referencia: str | None = None
 
     def __post_init__(self) -> None:
         if not self.file_name:
             raise ValueError("RawChunk.file_name não pode ser vazio")
         if not self.record_id:
             raise ValueError("RawChunk.record_id não pode ser vazio")
-        # paragraph pode ser vazio? O script Spark da Lello permite, mas resulta
-        # em embedding vazio. Aqui rejeitamos para evitar lixo no banco.
         if not self.paragraph or not self.paragraph.strip():
             raise ValueError(
                 f"RawChunk.paragraph vazio em {self.file_name}/{self.record_id}"

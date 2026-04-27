@@ -124,18 +124,9 @@ async def testar_conexao(config: SourceConfig) -> dict[str, Any]:
         return {"ok": True, "detail": "PDF upload — pronto para receber arquivos.", "metadata": {}}
 
     if isinstance(config, S3SourceConfig):
-        # Stub funcional: valida só a estrutura. Fase 6.2 fará list_objects real.
-        return {
-            "ok": True,
-            "detail": (
-                "Configuração S3 aceita. NOTA: validação real (list_objects) "
-                "vai ativar na Fase 6.2 quando aioboto3 for instalado."
-            ),
-            "metadata": {"bucket": config.bucket, "region": config.region},
-        }
+        return await _testar_s3(config)
 
     if isinstance(config, PostgresSourceConfig):
-        # Tenta conectar de fato — usa asyncpg que já está instalado.
         return await _testar_postgres(config)
 
     return {
@@ -143,6 +134,49 @@ async def testar_conexao(config: SourceConfig) -> dict[str, Any]:
         "detail": f"Tipo '{config.type}' aceito (validação completa na Fase 6.2).",
         "metadata": {},
     }
+
+
+async def _testar_s3(config: S3SourceConfig) -> dict[str, Any]:
+    """List_objects_v2 limitado a 1 chave para validar conexão."""
+    try:
+        import aioboto3  # noqa: F401
+    except ImportError:
+        return {
+            "ok": False,
+            "detail": "aioboto3 não instalado nesta API.",
+            "metadata": {},
+        }
+
+    import aioboto3
+    session_kwargs: dict = {}
+    if config.access_key_id and config.secret_access_key:
+        session_kwargs["aws_access_key_id"] = config.access_key_id
+        session_kwargs["aws_secret_access_key"] = config.secret_access_key
+
+    try:
+        session = aioboto3.Session(**session_kwargs)
+        async with session.client("s3", region_name=config.region) as s3:
+            resp = await s3.list_objects_v2(
+                Bucket=config.bucket,
+                Prefix=config.prefix or "",
+                MaxKeys=1,
+            )
+        keycount = resp.get("KeyCount", 0)
+        return {
+            "ok": True,
+            "detail": (
+                f"Bucket acessível. Encontradas {keycount} chave(s) com "
+                f"prefix={config.prefix!r} (limit=1)."
+            ),
+            "metadata": {"bucket": config.bucket, "region": config.region, "key_count_amostra": keycount},
+        }
+    except Exception as exc:
+        logger.warning(f"Falha testando S3: {exc}")
+        return {
+            "ok": False,
+            "detail": f"Falha de conexão S3: {exc}",
+            "metadata": {"bucket": config.bucket},
+        }
 
 
 async def _testar_postgres(config: PostgresSourceConfig) -> dict[str, Any]:

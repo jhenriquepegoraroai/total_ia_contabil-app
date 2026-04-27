@@ -11,6 +11,10 @@ openai==1.57.0
 tiktoken==0.8.0
 pypdf==5.1.0
 
+# Connectors externos (Fase 6.2)
+aioboto3==13.4.0           # AWS S3 (storage + connector)
+# azure-storage-blob>=12.20 # Azure Blob — em stub; descomentar ao ativar
+
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 bcrypt==4.0.1

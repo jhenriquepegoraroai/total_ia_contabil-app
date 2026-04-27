@@ -85,16 +85,31 @@ async def executar(
             logger.warning("Nenhum chunk para processar.")
             return await _finalizar(session, audit, t0)
 
-        # 2. content_hash de cada
+        # 2. Resolver referência por chunk e content_hash.
+        # Se o connector traz `referencia` no chunk, usamos ela; senão, a default.
+        ref_por_chunk: dict[tuple[str, str], str] = {
+            (c.file_name, c.record_id): (c.referencia or referencia)
+            for c in chunks_raw
+        }
         hashes_chunk = {
             (c.file_name, c.record_id): content_hash(
-                tenant_id, referencia, c.file_name, c.record_id, c.paragraph
+                tenant_id,
+                ref_por_chunk[(c.file_name, c.record_id)],
+                c.file_name,
+                c.record_id,
+                c.paragraph,
             )
             for c in chunks_raw
         }
 
-        # 3. Idempotência — quais já têm hash igual no banco?
-        hashes_db = await audit_mod.hashes_ja_processados(session, tenant_id, referencia)
+        # 3. Idempotência — coleta de hashes existentes por referência.
+        # Se há múltiplas referências entre os chunks, consulta cada uma.
+        referencias_distintas = {
+            ref_por_chunk[k] for k in ref_por_chunk
+        }
+        hashes_db: set[str] = set()
+        for ref in referencias_distintas:
+            hashes_db |= await audit_mod.hashes_ja_processados(session, tenant_id, ref)
 
         chunks_a_processar: list[RawChunk] = []
         for chunk in chunks_raw:
@@ -152,7 +167,7 @@ async def executar(
                     rows.append(
                         EmbeddingRow(
                             tenant_id=tenant_id,
-                            referencia=referencia,
+                            referencia=ref_por_chunk[(chunk.file_name, chunk.record_id)],
                             file_name=chunk.file_name,
                             record_id=chunk.record_id,
                             paragraph=chunk.paragraph,

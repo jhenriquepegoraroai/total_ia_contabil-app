@@ -18,12 +18,12 @@ def criar_connector(tipo: str, **kwargs: Any) -> Connector:
         return PdfFolderConnector(**kwargs)
 
     if tipo == "postgres":
-        # Implementação ainda não disponível (Fase 2.1, quando primeiro tenant
-        # com Postgres como origem de documentos for onboardado).
-        raise NotImplementedError(
-            "Connector 'postgres' não implementado nesta fase. "
-            "Use 'pdf_folder' ou aguarde a próxima entrega."
-        )
+        from .postgres import PostgresConnector
+        return PostgresConnector(**kwargs)
+
+    if tipo == "s3":
+        from .s3 import S3PdfConnector
+        return S3PdfConnector(**kwargs)
 
     raise ValueError(f"Connector desconhecido: {tipo!r}. Disponíveis: pdf_folder")
 

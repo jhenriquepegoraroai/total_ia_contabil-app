@@ -24,6 +24,7 @@ from api.db import superadmin_session, tenant_session
 from api.tenants.registry import TenantRegistry
 from api.storage import get_storage, tenant_source_prefix
 from api.storage.local import LocalStorage
+from ingestion.connectors.base import Connector
 from ingestion.connectors.pdf_folder import PdfFolderConnector
 from ingestion.connectors.storage_pdf import StoragePdfConnector
 from ingestion.embeddings import cliente_padrao
@@ -34,6 +35,55 @@ from .sources_service import atualizar_estado_pos_job, parse_config
 # =============================================================================
 # Listagem
 # =============================================================================
+def _construir_connector(
+    *,
+    tipo: str,
+    config_json: dict[str, Any],
+    tenant_id: str,
+    source_id: str,
+) -> Connector:
+    """Resolve o connector certo a partir do tipo da fonte + sua config."""
+    if tipo == "pdf_upload":
+        # Lê do storage local — atalho síncrono, sem asyncio.run.
+        storage = get_storage()
+        if isinstance(storage, LocalStorage):
+            prefix = tenant_source_prefix(tenant_id, source_id)
+            return PdfFolderConnector(path=str(storage.root / prefix))
+        # Storage não-local: connector que usa asyncio.run internamente.
+        return StoragePdfConnector(
+            storage=storage, tenant_id=tenant_id, source_id=source_id
+        )
+
+    if tipo == "postgres":
+        from ingestion.connectors.postgres import PostgresConnector
+        return PostgresConnector(
+            host=config_json["host"],
+            port=int(config_json.get("port", 5432)),
+            database=config_json["database"],
+            user=config_json["user"],
+            password=config_json.get("password", ""),
+            ssl_mode=config_json.get("ssl_mode", "require"),
+            table=config_json.get("table"),
+            schema_name=config_json.get("schema_name", "public"),
+            coluna_referencia=config_json.get("coluna_referencia"),
+            coluna_texto=config_json.get("coluna_texto"),
+            coluna_data=config_json.get("coluna_data"),
+            custom_query=config_json.get("custom_query"),
+        )
+
+    if tipo == "s3":
+        from ingestion.connectors.s3 import S3PdfConnector
+        return S3PdfConnector(
+            bucket=config_json["bucket"],
+            region=config_json.get("region", "sa-east-1"),
+            prefix=config_json.get("prefix", ""),
+            access_key_id=config_json.get("access_key_id"),
+            secret_access_key=config_json.get("secret_access_key"),
+        )
+
+    raise ValueError(f"Tipo de connector desconhecido para ingestão: {tipo}")
+
+
 async def listar_jobs(
     session: AsyncSession,
     tenant_id: str,
@@ -92,7 +142,7 @@ async def disparar_job(
     Cria um job em status 'queued' e dispara a execução em background.
     Retorna o job_id imediatamente; UI consulta status via GET.
     """
-    # 1. Validar source existe e é de tipo suportado nesta fase.
+    # 1. Validar source existe e é de tipo suportado.
     src = await session.execute(
         text(
             "SELECT id, type, config_json, enabled FROM tenant_data_sources "
@@ -105,10 +155,16 @@ async def disparar_job(
         raise ValueError("Source não encontrada.")
     if not row["enabled"]:
         raise ValueError("Source desabilitada.")
-    if row["type"] != "pdf_upload":
+
+    # Tipos suportados na Fase 6.2:
+    #   pdf_upload, postgres, s3 — rodam pipeline real.
+    #   demais — ainda em stub, recusar disparo.
+    suportados = {"pdf_upload", "postgres", "s3"}
+    if row["type"] not in suportados:
         raise ValueError(
-            f"Disparo via UI só está habilitado para 'pdf_upload' nesta fase. "
-            f"Source tipo '{row['type']}' será suportada em fase futura."
+            f"Disparo via UI ainda não disponível para tipo '{row['type']}'. "
+            f"Suportados: {sorted(suportados)}. "
+            "Os demais tipos terão ativação em fase futura."
         )
 
     # 2. Cria job
@@ -165,21 +221,39 @@ async def _executar_job(
 
     try:
         tenant_config = registry.get(tenant_id, only_enabled=False)
-        storage = get_storage()
-        # Atalho para LocalStorage: usa o PdfFolderConnector apontando para a
-        # pasta no filesystem (evita `asyncio.run` dentro do event loop).
-        # Para S3/Azure (Fase 6.2), substituir por StoragePdfConnector com
-        # download para tempdir, ou implementar variante async.
-        if isinstance(storage, LocalStorage):
-            prefix = tenant_source_prefix(tenant_id, str(source_id))
-            local_path = storage.root / prefix
-            connector = PdfFolderConnector(path=str(local_path))
-        else:
-            connector = StoragePdfConnector(
-                storage=storage,
-                tenant_id=tenant_id,
-                source_id=str(source_id),
-            )
+
+        # Resolve o tipo + config a partir do DB.
+        async with superadmin_session() as session:
+            row = (await session.execute(
+                text(
+                    "SELECT type, config_json FROM tenant_data_sources "
+                    "WHERE id = :sid"
+                ),
+                {"sid": str(source_id)},
+            )).mappings().first()
+        if not row:
+            raise RuntimeError("Source removida durante a execução.")
+
+        connector = _construir_connector(
+            tipo=row["type"],
+            config_json=row["config_json"] or {},
+            tenant_id=tenant_id,
+            source_id=str(source_id),
+        )
+
+        # Conectores que usam `asyncio.run` internamente (postgres, s3) não
+        # podem rodar dentro do event loop atual. Solução: ler todos os chunks
+        # em thread separada e passar para o pipeline já materializados.
+        chunks_pre_lidos = await asyncio.to_thread(lambda: list(connector.read()))
+        logger.info(f"[ingestion] {len(chunks_pre_lidos)} chunks pre-lidos do connector")
+
+        # Wrapper trivial que devolve os chunks pre-lidos.
+        class _PreLidoConnector(Connector):
+            def __init__(self, items, desc): self._items = items; self._desc = desc
+            def read(self): return iter(self._items)
+            def describe(self) -> str: return self._desc
+
+        connector_pre = _PreLidoConnector(chunks_pre_lidos, connector.describe())
 
         # Pipeline precisa de uma `tenant_session` (com RLS) para inserir
         # documents_embeddings/embeddings_audit corretamente.
@@ -189,7 +263,7 @@ async def _executar_job(
                 audit = await pipeline_executar(
                     tenant_config=tenant_config,
                     referencia=referencia or "0",
-                    connector=connector,
+                    connector=connector_pre,
                     session=session,
                     embedding_client=embedding_client,
                     batch_size=config.INGESTION_BATCH_SIZE,
@@ -228,7 +302,7 @@ async def _executar_job(
             )
         logger.info(f"[ingestion] job {job_id} concluído ({audit.qtde_processada} processados)")
 
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         logger.exception(f"[ingestion] job {job_id} falhou: {exc}")
         async with superadmin_session() as session:
             await session.execute(
