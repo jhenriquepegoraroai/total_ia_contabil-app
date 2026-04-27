@@ -9,6 +9,7 @@ pgvector==0.3.6
 
 openai==1.57.0
 tiktoken==0.8.0
+pypdf==5.1.0
 
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
