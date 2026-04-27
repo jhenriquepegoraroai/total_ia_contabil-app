@@ -76,3 +76,14 @@ async def tenant_session(tenant_id: str) -> AsyncIterator[AsyncSession]:
 async def dispose_engine() -> None:
     """Fecha o pool de conexões. Chamar no shutdown da aplicação."""
     await _engine.dispose()
+
+
+async def is_db_healthy() -> bool:
+    """Health check leve — `SELECT 1` numa conexão pool. True = OK."""
+    try:
+        async with _engine.connect() as conn:
+            result = await conn.execute(text("SELECT 1"))
+            return result.scalar_one() == 1
+    except Exception:
+        logger.exception("Health check do DB falhou")
+        return False
