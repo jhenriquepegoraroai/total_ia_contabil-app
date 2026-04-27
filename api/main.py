@@ -19,8 +19,9 @@ from fastapi import FastAPI
 from loguru import logger
 
 from api import config
-from api.db import dispose_engine
+from api.db import dispose_engine, superadmin_session
 from api.middleware.trace_middleware import TraceIdMiddleware
+from api.routers import admin as admin_router
 from api.routers import auth as auth_router
 from api.routers import chat as chat_router
 from api.routers import health as health_router
@@ -34,13 +35,14 @@ async def lifespan(app: FastAPI):
     configurar_logging()
     logger.info(f"Iniciando API em APP_ENV={config.APP_ENV}")
 
-    # Resolve diretório de configs (relativo ao módulo `api`)
+    # Resolve diretório de configs (relativo ao módulo `api`) — usado como
+    # seed inicial. A partir da Fase 5, a fonte de verdade é o DB.
     configs_dir = Path(__file__).resolve().parent / "tenants" / "configs"
     registry = TenantRegistry(configs_dir)
-    registry.carregar_todos()
 
-    # Tenants são imutáveis durante o lifecycle. Um restart é requerido para
-    # alterações de config (RULES.md sobre fail-fast).
+    async with superadmin_session() as session:
+        await registry.carregar_todos(session)
+
     app.state.tenant_registry = registry
 
     logger.info("API pronta para receber requests.")
@@ -55,7 +57,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Assistente Virtual de Condomínios",
     description="API multi-tenant de RAG sobre documentos de condomínios.",
-    version="0.3.0",
+    version="0.5.0",
     lifespan=lifespan,
 )
 
@@ -66,3 +68,4 @@ app.add_middleware(TraceIdMiddleware)
 app.include_router(health_router.router)
 app.include_router(auth_router.router)
 app.include_router(chat_router.router)
+app.include_router(admin_router.router)

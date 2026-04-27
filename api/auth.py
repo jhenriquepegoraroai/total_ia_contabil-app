@@ -4,12 +4,12 @@ Autenticação JWT.
 REGRA CRÍTICA (RULES.md #4): `tenant_id` é extraído SEMPRE do JWT —
 nunca do body/query. Cliente não pode escolher tenant arbitrário.
 
-Endpoints de auth:
-  - POST /auth/login            (produção — recebe email+senha+tenant_id)
-  - POST /auth/dev-token        (DESENVOLVIMENTO — gera token sem credencial)
+Fluxos:
+  - POST /auth/login        — email + senha (bcrypt) → JWT (prod)
+  - POST /auth/dev-token    — sem credencial, só DEV (não vai pro prod)
 
-O endpoint de dev-token só funciona se `APP_ENV=development`. Em produção
-ele é registrado como 404.
+Superadmin: o token carrega `is_superadmin=true` quando o usuário tem essa flag
+no DB. Rotas protegidas por `superadmin_required` rejeitam tokens normais.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -18,40 +18,61 @@ from typing import Annotated
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
+from passlib.context import CryptContext
 from pydantic import BaseModel
 
 from api import config
 
 
 _oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
+_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
+# =============================================================================
+# Senhas
+# =============================================================================
+def hash_password(plain: str) -> str:
+    return _pwd_context.hash(plain)
+
+
+def verify_password(plain: str, hashed: str) -> bool:
+    return _pwd_context.verify(plain, hashed)
+
+
+# =============================================================================
+# Modelos do token
+# =============================================================================
 class TokenPayload(BaseModel):
-    """Claims do JWT — tudo que precisamos saber sobre o portador."""
-
     sub: str          # user_id ou e-mail (subject)
     tenant_id: str
     role: str = "morador"
+    is_superadmin: bool = False
     exp: int
 
 
 class CurrentUser(BaseModel):
-    """Usuário autenticado da request atual."""
-
     user_id: str
     tenant_id: str
     role: str
+    is_superadmin: bool = False
 
 
 # =============================================================================
-# Geração de token
+# Geração / decodificação
 # =============================================================================
-def criar_token(*, sub: str, tenant_id: str, role: str = "morador") -> str:
+def criar_token(
+    *,
+    sub: str,
+    tenant_id: str,
+    role: str = "morador",
+    is_superadmin: bool = False,
+) -> str:
     expira = datetime.now(timezone.utc) + timedelta(minutes=config.JWT_EXPIRES_MINUTES)
     payload = {
         "sub": sub,
         "tenant_id": tenant_id,
         "role": role,
+        "is_superadmin": is_superadmin,
         "exp": int(expira.timestamp()),
     }
     return jwt.encode(payload, config.SECRET_KEY_JWT, algorithm=config.JWT_ALGORITHM)
@@ -70,16 +91,13 @@ def decodificar_token(token: str) -> TokenPayload:
 
 
 # =============================================================================
-# Dependency injection — usar com `Depends(usuario_atual)` nos handlers
+# Dependencies
 # =============================================================================
 async def usuario_atual(
     request: Request,
     token: Annotated[str | None, Depends(_oauth2_scheme)] = None,
 ) -> CurrentUser:
-    """
-    Extrai o usuário do JWT do header `Authorization: Bearer <token>`.
-    Falha com 401 se faltar ou for inválido.
-    """
+    """Extrai o usuário do JWT do header `Authorization: Bearer <token>`."""
     if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -91,4 +109,17 @@ async def usuario_atual(
         user_id=payload.sub,
         tenant_id=payload.tenant_id,
         role=payload.role,
+        is_superadmin=payload.is_superadmin,
     )
+
+
+async def superadmin_required(
+    user: Annotated[CurrentUser, Depends(usuario_atual)],
+) -> CurrentUser:
+    """Guard para rotas /admin/*. Rejeita usuários sem `is_superadmin`."""
+    if not user.is_superadmin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso restrito a superadmin.",
+        )
+    return user

@@ -87,6 +87,20 @@ export async function devLogin(input: {
   return data;
 }
 
+export async function login(input: {
+  email: string;
+  password: string;
+  tenant_id?: string;
+}): Promise<TokenResponse> {
+  const data = await request<TokenResponse>("/auth/login", {
+    method: "POST",
+    body: JSON.stringify(input),
+    auth: false,
+  });
+  salvarSessao(data);
+  return data;
+}
+
 export async function chat(payload: ChatRequest): Promise<ChatResponse> {
   return request<ChatResponse>("/chat", {
     method: "POST",
@@ -96,6 +110,56 @@ export async function chat(payload: ChatRequest): Promise<ChatResponse> {
 
 export async function health(): Promise<HealthResponse> {
   return request<HealthResponse>("/health", { method: "GET", auth: false });
+}
+
+// =============================================================================
+// Admin endpoints
+// =============================================================================
+import type { TenantConfig, TenantSummary } from "./types";
+
+export async function adminListarTenants(): Promise<TenantSummary[]> {
+  return request<TenantSummary[]>("/admin/tenants");
+}
+
+export async function adminBuscarTenant(tenantId: string): Promise<{
+  id: string;
+  nome_empresa: string;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+  config: TenantConfig;
+}> {
+  return request(`/admin/tenants/${encodeURIComponent(tenantId)}`);
+}
+
+export async function adminCriarTenant(config: TenantConfig): Promise<unknown> {
+  return request("/admin/tenants", {
+    method: "POST",
+    body: JSON.stringify(config),
+  });
+}
+
+export async function adminAtualizarTenant(
+  tenantId: string,
+  config: TenantConfig
+): Promise<unknown> {
+  return request(`/admin/tenants/${encodeURIComponent(tenantId)}`, {
+    method: "PUT",
+    body: JSON.stringify(config),
+  });
+}
+
+export async function adminToggleEnabled(
+  tenantId: string,
+  enabled: boolean
+): Promise<TenantSummary> {
+  return request<TenantSummary>(
+    `/admin/tenants/${encodeURIComponent(tenantId)}/enabled`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ enabled }),
+    }
+  );
 }
 
 export { ApiError };

@@ -31,6 +31,76 @@ export interface TokenResponse {
   token_type: string;
   tenant_id: string;
   user_id: string;
+  is_superadmin?: boolean;
+}
+
+// =============================================================================
+// Admin
+// =============================================================================
+export interface TenantSummary {
+  id: string;
+  nome_empresa: string;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+  qtde_documents: number;
+  qtde_embeddings: number;
+  qtde_users: number;
+  datasource_type: string | null;
+}
+
+export interface TenantTheme {
+  primary: string;
+  primary_foreground: string;
+  secondary: string;
+  secondary_foreground: string;
+  accent: string;
+  accent_foreground: string;
+  ink: string;
+  muted: string;
+  background: string;
+  logo_url: string;
+  favicon_url: string;
+  font_family: string;
+}
+
+export interface TenantContatos {
+  telefone: string;
+  whatsapp: string;
+  whatsapp_link: string;
+  email: string;
+  horario_atendimento?: string;
+}
+
+export interface TenantURLs {
+  app_moradores: string;
+  portal_resolva_facil: string;
+  prestacao_contas?: string | null;
+  cadastro_inquilino?: string | null;
+}
+
+export interface TenantConfig {
+  schema_version?: string;
+  tenant_id: string;
+  nome_empresa: string;
+  nome_assistente: string;
+  enabled: boolean;
+  contatos: TenantContatos;
+  urls: TenantURLs;
+  datasource: { type: "postgres_pgvector" } | { type: "databricks"; [k: string]: unknown };
+  theme?: Partial<TenantTheme>;
+  rag?: { top_k?: number; similarity_threshold?: number; completion_temperature?: number };
+  schemas_estruturados?: Record<string, string>;
+  prompt_principal: string;
+  prompt_formatacao: string;
+  prompt_esclarecimento: string;
+  categorias_prompt: string;
+  prompts_por_categoria?: Record<string, string>;
+  respostas_padrao?: Record<string, string>;
+  resposta_sem_documento: string;
+  mensagem_nao_encontrada: string;
+  regra_concorrentes?: string;
+  leis_referencia?: string;
 }
 
 export interface HealthResponse {

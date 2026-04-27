@@ -6,7 +6,12 @@ toda transação inicia com `SET LOCAL app.current_tenant = '<id>'`, que é o GU
 que as policies de RLS leem (ver db/migrations/001_init.sql, função
 `current_tenant()`).
 
-REGRA CRÍTICA (RULES.md #1, #2): nunca abrir uma sessão sem setar o tenant.
+Para superadmin, a função `superadmin_session` desliga RLS pela duração da
+transação. Em produção, a aplicação deve conectar com role separada que tenha
+`BYPASSRLS` privilege; em dev local, o owner avc tem permissão.
+
+REGRA CRÍTICA (RULES.md #1, #2): nunca abrir uma sessão sem setar o tenant —
+exceto para superadmin que SÓ pode operar via `superadmin_session`.
 """
 
 from contextlib import asynccontextmanager
@@ -23,7 +28,6 @@ from sqlalchemy.ext.asyncio import (
 from api import config
 
 
-# Engine global. `pool_pre_ping` evita conexões mortas após restart do RDS.
 _engine = create_async_engine(
     config.DATABASE_URL,
     echo=config.APP_ENV == "development" and config.LOG_LEVEL == "DEBUG",
@@ -58,9 +62,6 @@ async def tenant_session(tenant_id: str) -> AsyncIterator[AsyncSession]:
     async with _session_factory() as session:
         try:
             await session.begin()
-            # set_config('app.current_tenant', :tid, true) — `true` = LOCAL à transação.
-            # Usar set_config (e não SET LOCAL) permite passar valor parametrizado
-            # com segurança contra SQL injection.
             await session.execute(
                 text("SELECT set_config('app.current_tenant', :tid, true)"),
                 {"tid": tenant_id},
@@ -70,6 +71,33 @@ async def tenant_session(tenant_id: str) -> AsyncIterator[AsyncSession]:
         except Exception:
             await session.rollback()
             logger.exception(f"Erro em tenant_session(tenant_id={tenant_id!r}); rollback executado.")
+            raise
+
+
+@asynccontextmanager
+async def superadmin_session() -> AsyncIterator[AsyncSession]:
+    """
+    Sessão para operações cross-tenant de superadmin.
+
+    Desliga RLS (`SET LOCAL row_security = off`) para o superadmin enxergar
+    e modificar dados de qualquer tenant. Requer role com privilégio adequado
+    (TABLE OWNER ou role com BYPASSRLS).
+
+    Em produção, esta função DEVE ser chamada apenas a partir de rotas
+    protegidas pelo guard `superadmin_required`. Nunca exposta a usuários
+    comuns.
+
+    Toda chamada deve ser auditada em `admin_audit_log`.
+    """
+    async with _session_factory() as session:
+        try:
+            await session.begin()
+            await session.execute(text("SET LOCAL row_security = off"))
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            logger.exception("Erro em superadmin_session; rollback executado.")
             raise
 
 

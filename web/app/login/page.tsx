@@ -1,8 +1,8 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
-import { LogIn, Loader2 } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { LogIn, Loader2, ShieldCheck } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -14,13 +14,23 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { ApiError, devLogin, health } from "@/lib/api";
+import { ApiError, devLogin, health, login } from "@/lib/api";
 import { LelloLogo } from "@/components/lello-logo";
 
-export default function LoginPage() {
+type Mode = "user" | "admin";
+
+function LoginInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const next = searchParams.get("next");
+  // Modo admin auto-selecionado quando voltam de /admin sem sessão.
+  const initialMode: Mode = next?.startsWith("/admin") ? "admin" : "user";
+
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [tenantId, setTenantId] = useState("lello");
   const [userId, setUserId] = useState("dev_user");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [tenantsDisponiveis, setTenantsDisponiveis] = useState<string[]>([]);
@@ -36,14 +46,24 @@ export default function LoginPage() {
     setErro(null);
     setEnviando(true);
     try {
-      await devLogin({ tenant_id: tenantId.trim(), user_id: userId.trim(), role: "admin" });
-      router.push("/");
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setErro(`${err.status}: ${err.message}`);
+      if (mode === "admin") {
+        const resp = await login({ email: email.trim(), password });
+        if (!resp.is_superadmin) {
+          // Login OK mas usuário não é superadmin — redireciona pra home.
+          router.push("/");
+          return;
+        }
+        router.push(next && next.startsWith("/admin") ? next : "/admin");
       } else {
-        setErro(String(err));
+        await devLogin({
+          tenant_id: tenantId.trim(),
+          user_id: userId.trim(),
+          role: "admin",
+        });
+        router.push("/");
       }
+    } catch (err) {
+      setErro(err instanceof ApiError ? err.message : String(err));
     } finally {
       setEnviando(false);
     }
@@ -57,43 +77,115 @@ export default function LoginPage() {
           <div>
             <CardTitle className="text-2xl">Assistente Virtual de Condomínios</CardTitle>
             <CardDescription className="mt-2">
-              Entre para tirar dúvidas sobre o seu condomínio.
+              {mode === "admin"
+                ? "Entrar como superadmin."
+                : "Entre para tirar dúvidas sobre o seu condomínio."}
             </CardDescription>
           </div>
         </CardHeader>
+
+        <div className="px-6 pb-2">
+          <div className="grid grid-cols-2 rounded-md bg-muted p-1 text-sm">
+            <button
+              type="button"
+              onClick={() => {
+                setMode("user");
+                setErro(null);
+              }}
+              className={`rounded-sm py-1.5 transition-colors ${
+                mode === "user"
+                  ? "bg-background shadow-sm font-medium"
+                  : "text-muted-foreground"
+              }`}
+            >
+              Usuário (dev)
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMode("admin");
+                setErro(null);
+              }}
+              className={`rounded-sm py-1.5 transition-colors inline-flex items-center justify-center gap-1.5 ${
+                mode === "admin"
+                  ? "bg-background shadow-sm font-medium"
+                  : "text-muted-foreground"
+              }`}
+            >
+              <ShieldCheck className="h-3.5 w-3.5" />
+              Superadmin
+            </button>
+          </div>
+        </div>
+
         <form onSubmit={onSubmit}>
           <CardContent className="space-y-4">
-            <div className="space-y-1">
-              <label htmlFor="tenant" className="text-sm font-medium">
-                Administradora
-              </label>
-              <Input
-                id="tenant"
-                value={tenantId}
-                onChange={(e) => setTenantId(e.target.value)}
-                placeholder="lello"
-                required
-                autoFocus
-              />
-              {tenantsDisponiveis.length > 0 && (
-                <p className="text-xs text-muted-foreground pt-1">
-                  Disponíveis: {tenantsDisponiveis.join(", ")}
-                </p>
-              )}
-            </div>
+            {mode === "admin" ? (
+              <>
+                <div className="space-y-1">
+                  <label htmlFor="email" className="text-sm font-medium">
+                    E-mail
+                  </label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="admin@empresa.com"
+                    required
+                    autoFocus
+                    autoComplete="email"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label htmlFor="password" className="text-sm font-medium">
+                    Senha
+                  </label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    autoComplete="current-password"
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="space-y-1">
+                  <label htmlFor="tenant" className="text-sm font-medium">
+                    Administradora
+                  </label>
+                  <Input
+                    id="tenant"
+                    value={tenantId}
+                    onChange={(e) => setTenantId(e.target.value)}
+                    placeholder="lello"
+                    required
+                    autoFocus
+                  />
+                  {tenantsDisponiveis.length > 0 && (
+                    <p className="text-xs text-muted-foreground pt-1">
+                      Disponíveis: {tenantsDisponiveis.join(", ")}
+                    </p>
+                  )}
+                </div>
 
-            <div className="space-y-1">
-              <label htmlFor="user" className="text-sm font-medium">
-                Usuário
-              </label>
-              <Input
-                id="user"
-                value={userId}
-                onChange={(e) => setUserId(e.target.value)}
-                placeholder="dev_user"
-                required
-              />
-            </div>
+                <div className="space-y-1">
+                  <label htmlFor="user" className="text-sm font-medium">
+                    Usuário
+                  </label>
+                  <Input
+                    id="user"
+                    value={userId}
+                    onChange={(e) => setUserId(e.target.value)}
+                    placeholder="dev_user"
+                    required
+                  />
+                </div>
+              </>
+            )}
 
             {erro && (
               <div className="rounded-md bg-destructive/10 border border-destructive/30 px-3 py-2 text-sm text-destructive">
@@ -101,11 +193,12 @@ export default function LoginPage() {
               </div>
             )}
 
-            <p className="text-xs text-muted-foreground">
-              Modo de desenvolvimento — autenticação simplificada via{" "}
-              <code className="font-mono">/auth/dev-token</code>. Em produção, o login
-              será com email e senha.
-            </p>
+            {mode === "user" && (
+              <p className="text-xs text-muted-foreground">
+                Modo de desenvolvimento — autenticação simplificada via{" "}
+                <code className="font-mono">/auth/dev-token</code>.
+              </p>
+            )}
           </CardContent>
           <CardFooter>
             <Button type="submit" className="w-full" disabled={enviando}>
@@ -123,5 +216,13 @@ export default function LoginPage() {
         </form>
       </Card>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginInner />
+    </Suspense>
   );
 }
