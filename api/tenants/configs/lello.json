@@ -3,7 +3,7 @@
   "tenant_id": "lello",
   "nome_empresa": "Administradora Exemplo",
   "nome_assistente": "Bella",
-  "enabled": false,
+  "enabled": true,
 
   "contatos": {
     "telefone": "(XX) XXXX-XXXX",

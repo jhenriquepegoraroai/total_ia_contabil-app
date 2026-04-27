@@ -51,13 +51,19 @@ async function request<T>(
   }
 
   if (!resp.ok) {
-    let body: unknown;
+    // Body stream só pode ser consumido uma vez — text() primeiro, parse JSON depois.
+    const raw = await resp.text();
+    let body: unknown = raw;
     try {
-      body = await resp.json();
+      body = JSON.parse(raw);
     } catch {
-      body = await resp.text();
+      /* mantém raw como string */
     }
-    throw new ApiError(resp.status, `${resp.status} ${resp.statusText}`, body);
+    const detail =
+      typeof body === "object" && body && "detail" in body
+        ? String((body as { detail: unknown }).detail)
+        : raw || `${resp.status} ${resp.statusText}`;
+    throw new ApiError(resp.status, detail, body);
   }
 
   return (await resp.json()) as T;

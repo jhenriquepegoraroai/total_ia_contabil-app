@@ -211,11 +211,25 @@ CREATE INDEX idx_embeddings_tenant_ref ON documents_embeddings(tenant_id, refere
 CREATE INDEX idx_embeddings_tenant_filename ON documents_embeddings(tenant_id, file_name);
 CREATE INDEX idx_embeddings_data_valida ON documents_embeddings(tenant_id, referencia, data_valida DESC);
 
--- Índice vetorial — ivfflat com cosine.
--- 'lists' deve ser ~ sqrt(qtde_linhas) — começamos com 100 e ajustamos quando crescer.
--- Para volumes muito grandes (>10M linhas) considerar HNSW (pgvector >= 0.5.0).
-CREATE INDEX idx_embeddings_vector ON documents_embeddings
-    USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+-- Índice vetorial.
+--
+-- IMPORTANTE: text-embedding-3-large produz 3072 dimensões, mas tanto ivfflat
+-- quanto hnsw têm limite de 2000 dimensões para tipos `vector` puros.
+--
+-- Para indexar 3072 dim, há 3 opções (escolher na próxima migration):
+--   1. Adicionar coluna `embedding_half halfvec(3072)` (mantida por trigger ou app)
+--      e criar HNSW sobre ela: half precision, suporta até 4000 dim.
+--   2. Criar índice HNSW expression-based:
+--          CREATE INDEX ... USING hnsw ((embedding::halfvec(3072)) halfvec_cosine_ops);
+--      requer cast também na query.
+--   3. Reduzir dimensão na geração: OpenAI permite `dimensions=1536` no embed,
+--      com perda mínima de qualidade. Aí ivfflat/hnsw funcionam normalmente.
+--
+-- Por ora (Fase 0–4): SEM índice. Busca vetorial vira seq scan. Aceitável até
+-- chegar a milhares de chunks por tenant/referência. Decidir estratégia antes
+-- de carregar Lello em volume.
+--
+-- TODO(Fase 5): adicionar migration 003 com a estratégia escolhida.
 
 -- =============================================================================
 -- AUDITORIA DE INGESTÃO DE EMBEDDINGS
