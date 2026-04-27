@@ -7,6 +7,14 @@ single completion por resposta.
 
 REGRA CRÍTICA (RULES.md #16): classificação usa `temperature=0` e `top_p=1`.
 Geração pode usar temperature configurável por tenant (default 0.2).
+
+NOTA — gpt-5.2 e outros modelos novos da OpenAI:
+  • param renomeado de `max_tokens` para `max_completion_tokens`
+  • `temperature` aceita apenas o default (1) — qualquer outro valor é erro
+  • `top_p` aceita apenas o default (1)
+Por isso esta classe detecta se o modelo é "moderno" (gpt-5.x, o-series, gpt-4.1+)
+e ajusta a chamada. Para modelos antigos (gpt-4o, gpt-4-turbo etc), continua
+mandando `max_tokens` + `temperature` + `top_p`.
 """
 
 from functools import lru_cache
@@ -17,6 +25,21 @@ from openai import AsyncOpenAI
 from api import config
 
 
+def _modelo_moderno(model: str) -> bool:
+    """
+    Detecta se o modelo exige a API nova (max_completion_tokens, sem temperature
+    customizada). Heurística: gpt-5.x, o1/o3/o4 (reasoning), gpt-4.1+.
+    Lista cresce — em caso de novos modelos, basta adicionar prefixos aqui.
+    """
+    m = (model or "").lower()
+    if m.startswith(("gpt-5", "o1", "o3", "o4")):
+        return True
+    if m.startswith("gpt-4.") and not m.startswith("gpt-4.0"):
+        # gpt-4.1, 4.5, etc — todos modernos.
+        return True
+    return False
+
+
 class LLMClient:
     """Wrapper assíncrono — uma instância por processo (singleton via lru_cache)."""
 
@@ -24,6 +47,7 @@ class LLMClient:
         self._client = AsyncOpenAI(api_key=api_key, timeout=30)
         self._embedding_model = embedding_model
         self._completion_model = completion_model
+        self._modelo_moderno = _modelo_moderno(completion_model)
 
     async def embed_query(self, texto: str) -> list[float]:
         """Embedding de uma única pergunta. Trunca texto vazio e levanta."""
@@ -35,6 +59,25 @@ class LLMClient:
         )
         return resp.data[0].embedding
 
+    def _kwargs_completion(
+        self,
+        *,
+        max_tokens: int,
+        temperature: float | None,
+    ) -> dict:
+        """Monta kwargs corretos conforme a geração do modelo."""
+        kwargs: dict = {"model": self._completion_model}
+        if self._modelo_moderno:
+            kwargs["max_completion_tokens"] = max_tokens
+            # Modelos modernos só aceitam temperature=1 (default).
+            # Não enviamos para evitar erro 400.
+        else:
+            kwargs["max_tokens"] = max_tokens
+            if temperature is not None:
+                kwargs["temperature"] = temperature
+            kwargs["top_p"] = 1.0
+        return kwargs
+
     async def classificar(
         self,
         *,
@@ -43,18 +86,18 @@ class LLMClient:
         max_tokens: int = 16,
     ) -> str:
         """
-        Classificação determinística (temperature=0, top_p=1).
-        Retorna a string crua de saída — quem chama parseia para int/categoria.
+        Classificação. Em modelos antigos é determinística (temperature=0).
+        Em modelos modernos (gpt-5+), `temperature` é fixo em 1 — ainda assim
+        a probabilidade do número da categoria sair certo é alta com
+        max_completion_tokens=16.
         """
+        kwargs = self._kwargs_completion(max_tokens=max_tokens, temperature=0.0)
         resp = await self._client.chat.completions.create(
-            model=self._completion_model,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": pergunta},
             ],
-            temperature=0.0,
-            top_p=1.0,
-            max_tokens=max_tokens,
+            **kwargs,
         )
         return (resp.choices[0].message.content or "").strip()
 
@@ -67,9 +110,9 @@ class LLMClient:
         temperature: float = 0.2,
         max_tokens: int = 800,
     ) -> str:
-        """Geração com contexto RAG. Temperature configurável por tenant."""
+        """Geração com contexto RAG. Temperature aplicada apenas em modelos antigos."""
+        kwargs = self._kwargs_completion(max_tokens=max_tokens, temperature=temperature)
         resp = await self._client.chat.completions.create(
-            model=self._completion_model,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {
@@ -77,9 +120,7 @@ class LLMClient:
                     "content": f"CONTEXTO:\n{contexto}\n\nPERGUNTA:\n{pergunta}",
                 },
             ],
-            temperature=temperature,
-            top_p=1.0,
-            max_tokens=max_tokens,
+            **kwargs,
         )
         return (resp.choices[0].message.content or "").strip()
 
@@ -91,15 +132,13 @@ class LLMClient:
         max_tokens: int = 100,
     ) -> str:
         """Reformula a pergunta original para melhorar a busca vetorial."""
+        kwargs = self._kwargs_completion(max_tokens=max_tokens, temperature=0.0)
         resp = await self._client.chat.completions.create(
-            model=self._completion_model,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": pergunta},
             ],
-            temperature=0.0,
-            top_p=1.0,
-            max_tokens=max_tokens,
+            **kwargs,
         )
         return (resp.choices[0].message.content or pergunta).strip()
 
@@ -122,7 +161,6 @@ def get_llm_client() -> LLMClient:
 
 
 # Cache de clientes por chave (clientes com chave própria).
-# Usa hash da chave como key para não vazar a chave nos logs/repr do cache.
 @lru_cache(maxsize=64)
 def _get_llm_client_for_key(api_key: str) -> LLMClient:
     logger.info(
@@ -143,9 +181,6 @@ def get_llm_client_for_tenant(tenant_config) -> LLMClient:
     - Se `tenant_config.openai.mode == 'custom'` e há `api_key`, usa a
       chave do cliente (cliente paga o consumo).
     - Senão, cai no cliente default (chave da Lello).
-
-    O parâmetro `tenant_config` não é tipado para evitar import circular
-    (TenantConfig importaria api.llm que importaria api.tenants.models).
     """
     cfg = getattr(tenant_config, "openai", None)
     if cfg is not None and cfg.mode == "custom" and cfg.api_key:
