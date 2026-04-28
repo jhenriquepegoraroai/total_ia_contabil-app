@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { LayoutDashboard, Building2, ShieldCheck, LogOut, ChevronLeft } from "lucide-react";
+import { Building2, ShieldCheck, LogOut } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { LelloLogo } from "@/components/lello-logo";
@@ -78,12 +78,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </nav>
 
         <div className="p-3 border-t space-y-2">
-          <Link
-            href="/"
-            className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ChevronLeft className="h-3 w-3" /> Voltar pro chat
-          </Link>
           <div className="text-xs text-muted-foreground truncate" title={email}>
             {email}
           </div>

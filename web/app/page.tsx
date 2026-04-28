@@ -29,6 +29,12 @@ export default function ChatPage() {
       router.replace("/login");
       return;
     }
+    // Superadmin não tem tenant real — `_system` é reservado e não pode
+    // chatar. Redireciona pra /admin (área dele).
+    if (s.is_superadmin || s.tenant_id === "_system") {
+      router.replace("/admin");
+      return;
+    }
     setSessaoCheck({ tenant_id: s.tenant_id, user_id: s.user_id });
   }, [router]);
 
