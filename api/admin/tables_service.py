@@ -164,8 +164,16 @@ async def listar_rows(
     params: dict[str, Any] = {"tid": tenant_id}
 
     if referencia and meta.get("coluna_referencia"):
-        where_clauses.append(f"{meta['coluna_referencia']} = :ref")
-        params["ref"] = referencia
+        # Prefix match — usa o índice B-tree (tenant_id, referencia) que já
+        # existe nas tabelas multi-tenant. Permite filtrar progressivamente
+        # ('9' → '99' → '999' → '99999') sem custo extra.
+        # Escapa wildcards do usuário pra evitar comportamento esquisito
+        # ('a%b' precisa virar 'a\%b%').
+        ref_escaped = referencia.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
+        where_clauses.append(
+            f"{meta['coluna_referencia']} LIKE :ref ESCAPE '\\'"
+        )
+        params["ref"] = f"{ref_escaped}%"
 
     if q and meta.get("colunas_busca"):
         ors = []

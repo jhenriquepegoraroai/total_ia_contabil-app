@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useMemo, useState } from "react";
+import { use, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -35,10 +35,18 @@ export default function TablesPage({
   const [erroLista, setErroLista] = useState<string | null>(null);
 
   const [tabelaAtiva, setTabelaAtiva] = useState<string | null>(null);
-  const [filtroRef, setFiltroRef] = useState("");
-  const [filtroQ, setFiltroQ] = useState("");
+  // Estado de input (digitação) vs estado debounced (que dispara fetch).
+  const [filtroRefInput, setFiltroRefInput] = useState("");
+  const [filtroQInput, setFiltroQInput] = useState("");
+  const filtroRef = useDebounced(filtroRefInput, 250);
+  const filtroQ = useDebounced(filtroQInput, 250);
   const [offset, setOffset] = useState(0);
   const limit = 50;
+
+  // Min chars para busca textual (ILIKE em paragraph é caro — não dispara
+  // com 1 char).
+  const Q_MIN_CHARS = 2;
+  const filtroQEfetivo = filtroQ.trim().length >= Q_MIN_CHARS ? filtroQ.trim() : "";
 
   const [data, setData] = useState<TableRows | null>(null);
   const [carregandoRows, setCarregandoRows] = useState(false);
@@ -58,14 +66,14 @@ export default function TablesPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenantId]);
 
-  // Recarrega rows quando muda tabela / filtro / paginação.
+  // Recarrega rows quando muda tabela / filtro debounced / paginação.
   useEffect(() => {
     if (!tabelaAtiva) return;
     setCarregandoRows(true);
     setErroRows(null);
     adminListarRowsTabela(tenantId, tabelaAtiva, {
       referencia: filtroRef.trim() || undefined,
-      q: filtroQ.trim() || undefined,
+      q: filtroQEfetivo || undefined,
       offset,
       limit,
     })
@@ -74,24 +82,18 @@ export default function TablesPage({
         setErroRows(err instanceof ApiError ? err.message : String(err))
       )
       .finally(() => setCarregandoRows(false));
-  }, [tenantId, tabelaAtiva, filtroRef, filtroQ, offset]);
+  }, [tenantId, tabelaAtiva, filtroRef, filtroQEfetivo, offset]);
 
-  // Reset paginação ao trocar tabela ou filtro.
+  // Reset paginação ao trocar filtro (não esperamos debounce pra resetar).
+  useEffect(() => {
+    setOffset(0);
+  }, [filtroRefInput, filtroQInput]);
+
   function selecionarTabela(nome: string) {
     setTabelaAtiva(nome);
     setOffset(0);
-    setFiltroRef("");
-    setFiltroQ("");
-  }
-
-  function aplicarFiltroRef(v: string) {
-    setFiltroRef(v);
-    setOffset(0);
-  }
-
-  function aplicarFiltroQ(v: string) {
-    setFiltroQ(v);
-    setOffset(0);
+    setFiltroRefInput("");
+    setFiltroQInput("");
   }
 
   return (
@@ -159,20 +161,25 @@ export default function TablesPage({
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs text-muted-foreground shrink-0">Cond:</span>
                   <Input
-                    value={filtroRef}
-                    onChange={(e) => aplicarFiltroRef(e.target.value)}
-                    placeholder="ex: 99999"
+                    value={filtroRefInput}
+                    onChange={(e) => setFiltroRefInput(e.target.value)}
+                    placeholder="ex: 9 ou 99999"
                     className="h-8 text-sm w-32"
                   />
                 </div>
                 <div className="flex items-center gap-1.5 flex-1 max-w-md">
                   <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                   <Input
-                    value={filtroQ}
-                    onChange={(e) => aplicarFiltroQ(e.target.value)}
-                    placeholder="busca textual…"
+                    value={filtroQInput}
+                    onChange={(e) => setFiltroQInput(e.target.value)}
+                    placeholder={`busca textual… (mín ${Q_MIN_CHARS} chars)`}
                     className="h-8 text-sm"
                   />
+                  {filtroQInput && filtroQInput.length < Q_MIN_CHARS && (
+                    <span className="text-[10px] text-muted-foreground/70 shrink-0">
+                      digite mais
+                    </span>
+                  )}
                 </div>
                 {data && (
                   <span className="text-xs text-muted-foreground ml-auto">
@@ -234,6 +241,27 @@ export default function TablesPage({
       </div>
     </div>
   );
+}
+
+
+/**
+ * useDebounced — devolve `value` só depois que ficou estável por `delay` ms.
+ * Cada keystroke reinicia o timer, então fetches só disparam quando o usuário
+ * para de digitar.
+ */
+function useDebounced<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState(value);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setDebounced(value), delay);
+    return () => {
+      if (timer.current) clearTimeout(timer.current);
+    };
+  }, [value, delay]);
+
+  return debounced;
 }
 
 
