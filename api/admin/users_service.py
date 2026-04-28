@@ -40,7 +40,7 @@ async def listar_users(
 ) -> list[dict[str, Any]]:
     sql = text(
         """
-        SELECT id, tenant_id, email, nome, role, enabled, is_superadmin,
+        SELECT id, tenant_id, email, nome, role, referencia, enabled, is_superadmin,
                (password_hash IS NOT NULL) AS tem_senha,
                created_at
         FROM users
@@ -57,7 +57,7 @@ async def buscar_user(
 ) -> dict[str, Any] | None:
     sql = text(
         """
-        SELECT id, tenant_id, email, nome, role, enabled, is_superadmin,
+        SELECT id, tenant_id, email, nome, role, referencia, enabled, is_superadmin,
                (password_hash IS NOT NULL) AS tem_senha,
                created_at
         FROM users
@@ -76,11 +76,13 @@ async def criar_user(
     nome: str,
     role: str,
     password: str,
+    referencia: str | None = None,
 ) -> UUID:
     """Cria usuário comum num tenant. Levanta ValueError em problemas."""
     _validar_tenant_e_role(tenant_id, role)
     if not password or len(password) < 8:
         raise ValueError("Senha precisa ter pelo menos 8 caracteres.")
+    referencia = (referencia or "").strip() or None
 
     # Email único GLOBALMENTE (entre todos os tenants + superadmins).
     # O login no /auth/login resolve usuário por email só (sem tenant_id),
@@ -107,10 +109,13 @@ async def criar_user(
         row = (await session.execute(
             text(
                 "INSERT INTO users "
-                "(tenant_id, email, nome, role, password_hash, is_superadmin) "
-                "VALUES (:tid, :em, :nm, :rl, :ph, false) RETURNING id"
+                "(tenant_id, email, nome, role, password_hash, referencia, is_superadmin) "
+                "VALUES (:tid, :em, :nm, :rl, :ph, :ref, false) RETURNING id"
             ),
-            {"tid": tenant_id, "em": email, "nm": nome, "rl": role, "ph": password_hash},
+            {
+                "tid": tenant_id, "em": email, "nm": nome, "rl": role,
+                "ph": password_hash, "ref": referencia,
+            },
         )).first()
     except Exception as exc:
         if "duplicate key" in str(exc).lower() or "unique" in str(exc).lower():
@@ -130,8 +135,14 @@ async def atualizar_user(
     nome: str | None = None,
     role: str | None = None,
     enabled: bool | None = None,
+    referencia: str | None = None,
+    referencia_set: bool = False,
 ) -> bool:
-    """Edita campos não-sensíveis de um usuário comum. Retorna False se não existe ou é superadmin."""
+    """Edita campos não-sensíveis de um usuário comum. Retorna False se não existe ou é superadmin.
+
+    Para limpar `referencia`, passe `referencia=None` E `referencia_set=True`.
+    Sem `referencia_set`, o campo é ignorado (preserva o valor atual).
+    """
     _validar_tenant(tenant_id)
     if role is not None and role not in _VALID_ROLES:
         raise ValueError(f"Role inválida '{role}'. Use {sorted(_VALID_ROLES)}.")
@@ -153,6 +164,9 @@ async def atualizar_user(
     if enabled is not None:
         sets.append("enabled = :en")
         params["en"] = enabled
+    if referencia_set:
+        sets.append("referencia = :ref")
+        params["ref"] = (referencia or "").strip() or None
 
     if not sets:
         return True  # nada a mudar — não-erro

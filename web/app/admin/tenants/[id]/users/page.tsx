@@ -147,9 +147,14 @@ function NovoUsuarioForm({
   const [email, setEmail] = useState("");
   const [nome, setNome] = useState("");
   const [role, setRole] = useState<UserRole>("morador");
+  const [referencia, setReferencia] = useState("");
   const [password, setPassword] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+
+  // Roles que falam com 1 condomínio só → referencia obrigatória.
+  // Admin/atendente podem operar em vários — referencia opcional.
+  const referenciaObrigatoria = role === "morador" || role === "sindico";
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -161,6 +166,7 @@ function NovoUsuarioForm({
         nome: nome.trim(),
         role,
         password,
+        referencia: referencia.trim() || null,
       });
       onCreated();
     } catch (err) {
@@ -217,6 +223,25 @@ function NovoUsuarioForm({
                 required
                 autoComplete="new-password"
               />
+            </div>
+            <div className="space-y-1 sm:col-span-2">
+              <label className="text-xs font-medium">
+                Condomínio (referência)
+                {referenciaObrigatoria && (
+                  <span className="text-destructive ml-1">*</span>
+                )}
+              </label>
+              <Input
+                value={referencia}
+                onChange={(e) => setReferencia(e.target.value)}
+                placeholder="ex: 12345"
+                required={referenciaObrigatoria}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                {referenciaObrigatoria
+                  ? "Obrigatório para morador/síndico — define o condomínio que o usuário consulta no chat."
+                  : "Opcional para admin/atendente — se preenchido, vira o default no chat (mas pode trocar)."}
+              </p>
             </div>
           </div>
 
@@ -320,6 +345,12 @@ function UserRow({
           </div>
           <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground mt-0.5">
             <span>{ROLE_LABEL[user.role] || user.role}</span>
+            {user.referencia && (
+              <>
+                <span>·</span>
+                <span>cond <span className="font-mono">{user.referencia}</span></span>
+              </>
+            )}
             <span>·</span>
             {user.enabled ? (
               <span className="text-green-700 inline-flex items-center gap-1">
@@ -334,6 +365,12 @@ function UserRow({
               <>
                 <span>·</span>
                 <span className="text-amber-700">sem senha definida</span>
+              </>
+            )}
+            {!user.referencia && !user.is_superadmin && (
+              <>
+                <span>·</span>
+                <span className="text-amber-700">sem condomínio definido</span>
               </>
             )}
           </div>

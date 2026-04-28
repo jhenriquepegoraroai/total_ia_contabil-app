@@ -453,6 +453,7 @@ class UserOut(BaseModel):
     email: str
     nome: str
     role: str
+    referencia: str | None = None
     enabled: bool
     is_superadmin: bool
     tem_senha: bool
@@ -464,12 +465,17 @@ class CreateUserRequest(BaseModel):
     nome: str
     role: str = "morador"
     password: str
+    referencia: str | None = None
 
 
 class UpdateUserRequest(BaseModel):
     nome: str | None = None
     role: str | None = None
     enabled: bool | None = None
+    # `referencia` é opcional — se vier no body (mesmo como string vazia ou null
+    # explícito), é aplicada. PATCH normal sem o campo preserva o valor atual.
+    referencia: str | None = None
+    referencia_set: bool = False
 
 
 class ResetPasswordRequest(BaseModel):
@@ -505,6 +511,7 @@ async def criar_usuario(
                 nome=payload.nome.strip(),
                 role=payload.role,
                 password=payload.password,
+                referencia=payload.referencia,
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -529,6 +536,8 @@ async def atualizar_usuario(
                 nome=payload.nome,
                 role=payload.role,
                 enabled=payload.enabled,
+                referencia=payload.referencia,
+                referencia_set=payload.referencia_set,
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc

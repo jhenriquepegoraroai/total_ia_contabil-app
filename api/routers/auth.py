@@ -53,6 +53,7 @@ class TokenResponse(BaseModel):
     tenant_id: str
     user_id: str
     is_superadmin: bool = False
+    referencia: str | None = None  # condomínio default do usuário, se houver
 
 
 class LoginRequest(BaseModel):
@@ -84,13 +85,13 @@ async def login(
     async with superadmin_session() as session:
         if payload.tenant_id:
             sql = text(
-                "SELECT id, tenant_id, password_hash, role, is_superadmin, enabled "
+                "SELECT id, tenant_id, password_hash, role, referencia, is_superadmin, enabled "
                 "FROM users WHERE tenant_id = :tid AND email = :em LIMIT 1"
             )
             params = {"tid": payload.tenant_id, "em": payload.email}
         else:
             sql = text(
-                "SELECT id, tenant_id, password_hash, role, is_superadmin, enabled "
+                "SELECT id, tenant_id, password_hash, role, referencia, is_superadmin, enabled "
                 "FROM users WHERE email = :em ORDER BY is_superadmin DESC LIMIT 1"
             )
             params = {"em": payload.email}
@@ -133,6 +134,7 @@ async def login(
         tenant_id=row.tenant_id,
         user_id=str(row.id),
         is_superadmin=row.is_superadmin,
+        referencia=row.referencia,
     )
 
 

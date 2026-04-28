@@ -15,6 +15,7 @@ interface StoredSession {
   tenant_id: string;
   user_id: string;
   is_superadmin: boolean;
+  referencia: string | null;
 }
 
 export function salvarSessao(token: TokenResponse): void {
@@ -23,6 +24,7 @@ export function salvarSessao(token: TokenResponse): void {
     tenant_id: token.tenant_id,
     user_id: token.user_id,
     is_superadmin: token.is_superadmin ?? false,
+    referencia: token.referencia ?? null,
   };
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
 }
@@ -37,6 +39,7 @@ export function lerSessao(): StoredSession | null {
       tenant_id: parsed.tenant_id ?? "",
       user_id: parsed.user_id ?? "",
       is_superadmin: parsed.is_superadmin ?? false,
+      referencia: parsed.referencia ?? null,
     };
   } catch {
     window.localStorage.removeItem(STORAGE_KEY);

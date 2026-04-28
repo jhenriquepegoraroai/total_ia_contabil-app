@@ -18,9 +18,11 @@ export default function ChatPage() {
   const [pergunta, setPergunta] = useState("");
   const [referencia, setReferencia] = useState("");
   const [enviando, setEnviando] = useState(false);
-  const [sessaoCheck, setSessaoCheck] = useState<{ tenant_id: string; user_id: string } | null>(
-    null
-  );
+  const [sessaoCheck, setSessaoCheck] = useState<{
+    tenant_id: string;
+    user_id: string;
+    referencia: string | null;
+  } | null>(null);
   const [sessionId, setSessionId] = useState<string | undefined>(undefined);
 
   useEffect(() => {
@@ -35,7 +37,15 @@ export default function ChatPage() {
       router.replace("/admin");
       return;
     }
-    setSessaoCheck({ tenant_id: s.tenant_id, user_id: s.user_id });
+    setSessaoCheck({
+      tenant_id: s.tenant_id,
+      user_id: s.user_id,
+      referencia: s.referencia,
+    });
+    // Se o cadastro do usuário já tem condomínio, pré-preenche o campo.
+    if (s.referencia) {
+      setReferencia(s.referencia);
+    }
   }, [router]);
 
   async function enviar() {
@@ -139,6 +149,7 @@ export default function ChatPage() {
           setReferencia={setReferencia}
           enviando={enviando}
           onSubmit={enviar}
+          referenciaTrancada={!!sessaoCheck.referencia}
         />
       </div>
     </main>

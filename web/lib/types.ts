@@ -32,6 +32,7 @@ export interface TokenResponse {
   tenant_id: string;
   user_id: string;
   is_superadmin?: boolean;
+  referencia?: string | null;  // condomínio default do usuário
 }
 
 // =============================================================================
@@ -216,6 +217,7 @@ export interface TenantUser {
   email: string;
   nome: string;
   role: UserRole;
+  referencia: string | null;
   enabled: boolean;
   is_superadmin: boolean;
   tem_senha: boolean;
@@ -227,12 +229,17 @@ export interface CreateUserPayload {
   nome: string;
   role: UserRole;
   password: string;
+  referencia?: string | null;
 }
 
 export interface UpdateUserPayload {
   nome?: string;
   role?: UserRole;
   enabled?: boolean;
+  // Para mudar referencia, envie o valor + referencia_set:true. Sem
+  // referencia_set, o backend preserva o valor atual.
+  referencia?: string | null;
+  referencia_set?: boolean;
 }
 
 // =============================================================================
