@@ -19,6 +19,8 @@ import type {
   SourceDetail,
   SourceFile,
   SourceSummary,
+  TableRows,
+  TableSummary,
   TenantConfig,
   TenantSummary,
   TenantUser,
@@ -392,6 +394,33 @@ export async function adminBuscarChat(
 ): Promise<ChatSessionDetail> {
   return request<ChatSessionDetail>(
     `/admin/tenants/${encodeURIComponent(tenantId)}/chats/${sessionId}`
+  );
+}
+
+// ===========================================================================
+// Admin — browser de tabelas (debug do superadmin)
+// ===========================================================================
+export async function adminListarTabelas(
+  tenantId: string
+): Promise<TableSummary[]> {
+  return request<TableSummary[]>(
+    `/admin/tenants/${encodeURIComponent(tenantId)}/tables`
+  );
+}
+
+export async function adminListarRowsTabela(
+  tenantId: string,
+  tabela: string,
+  params?: { referencia?: string; q?: string; offset?: number; limit?: number }
+): Promise<TableRows> {
+  const qs = new URLSearchParams();
+  if (params?.referencia) qs.set("referencia", params.referencia);
+  if (params?.q) qs.set("q", params.q);
+  if (params?.offset !== undefined) qs.set("offset", String(params.offset));
+  if (params?.limit !== undefined) qs.set("limit", String(params.limit));
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return request<TableRows>(
+    `/admin/tenants/${encodeURIComponent(tenantId)}/tables/${encodeURIComponent(tabela)}${suffix}`
   );
 }
 

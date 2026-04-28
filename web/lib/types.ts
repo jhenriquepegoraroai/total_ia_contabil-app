@@ -296,6 +296,28 @@ export interface HealthResponse {
   version: string;
 }
 
+// =============================================================================
+// Browser de tabelas (admin → tab Tabelas)
+// =============================================================================
+export interface TableSummary {
+  name: string;
+  label: string;
+  descricao: string;
+  qtde_linhas: number;
+  colunas: string[];
+}
+
+export interface TableRows {
+  table: string;
+  label: string;
+  descricao: string;
+  columns: string[];
+  rows: Record<string, unknown>[];
+  total: number;
+  offset: number;
+  limit: number;
+}
+
 export interface Message {
   id: string;
   role: "user" | "assistant" | "system";

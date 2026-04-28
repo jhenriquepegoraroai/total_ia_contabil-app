@@ -29,6 +29,7 @@ from api.admin import (
     chats_service,
     ingestion_service,
     sources_service,
+    tables_service,
     users_service,
 )
 from api.admin.sources_models import (
@@ -671,3 +672,64 @@ async def buscar_chat(
             if c.get("similarity") is not None:
                 c["similarity"] = float(c["similarity"])
     return ChatSessionDetail(**data)
+
+
+# =============================================================================
+# Browser de tabelas — read-only, com whitelist (debug do superadmin)
+# =============================================================================
+class TableSummary(BaseModel):
+    name: str
+    label: str
+    descricao: str
+    qtde_linhas: int
+    colunas: list[str]
+
+
+class TableRows(BaseModel):
+    table: str
+    label: str
+    descricao: str
+    columns: list[str]
+    rows: list[dict[str, Any]]
+    total: int
+    offset: int
+    limit: int
+
+
+@router.get("/tenants/{tenant_id}/tables", response_model=list[TableSummary])
+async def listar_tabelas(
+    tenant_id: str,
+    user: Annotated[CurrentUser, Depends(superadmin_required)],
+) -> list[TableSummary]:
+    async with superadmin_session() as session:
+        rows = await tables_service.listar_tabelas(session, tenant_id)
+    return [TableSummary(**r) for r in rows]
+
+
+@router.get(
+    "/tenants/{tenant_id}/tables/{tabela}",
+    response_model=TableRows,
+)
+async def listar_rows_tabela(
+    tenant_id: str,
+    tabela: str,
+    user: Annotated[CurrentUser, Depends(superadmin_required)],
+    referencia: str | None = None,
+    q: str | None = None,
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=200),
+) -> TableRows:
+    async with superadmin_session() as session:
+        try:
+            data = await tables_service.listar_rows(
+                session,
+                tenant_id,
+                tabela,
+                referencia=referencia,
+                q=q,
+                offset=offset,
+                limit=limit,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return TableRows(**data)

@@ -9,6 +9,7 @@ import {
   History,
   ChevronLeft,
   MessageSquare,
+  Table2,
   Users as UsersIcon,
 } from "lucide-react";
 
@@ -19,6 +20,7 @@ const TABS = [
   { suffix: "/sources", label: "Fontes de dados", icon: Database },
   { suffix: "/users", label: "Usuários", icon: UsersIcon },
   { suffix: "/chats", label: "Conversas", icon: MessageSquare },
+  { suffix: "/tables", label: "Tabelas", icon: Table2 },
   { suffix: "/jobs", label: "Histórico de jobs", icon: History },
 ];
 
