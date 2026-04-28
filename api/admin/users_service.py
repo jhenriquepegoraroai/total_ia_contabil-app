@@ -82,17 +82,24 @@ async def criar_user(
     if not password or len(password) < 8:
         raise ValueError("Senha precisa ter pelo menos 8 caracteres.")
 
-    # Email único por tenant (FK do users tem UNIQUE (tenant_id, email)).
-    # Mas o login real busca por email — para evitar ambiguidade entre tenants,
-    # também checamos se há superadmin com esse email (caso bem improvável).
+    # Email único GLOBALMENTE (entre todos os tenants + superadmins).
+    # O login no /auth/login resolve usuário por email só (sem tenant_id),
+    # então duas contas com mesmo email em tenants diferentes criariam
+    # ambiguidade — quem entra é a que aparecer primeiro no ORDER BY.
+    # Constraint do DB é UNIQUE(tenant_id, email); a checagem global
+    # é feita aqui na camada de serviço.
     existing = (await session.execute(
-        text(
-            "SELECT tenant_id, is_superadmin FROM users WHERE email = :em AND tenant_id = :tid"
-        ),
-        {"em": email, "tid": tenant_id},
+        text("SELECT tenant_id, is_superadmin FROM users WHERE email = :em"),
+        {"em": email},
     )).first()
     if existing:
-        raise ValueError(f"Já existe usuário com email '{email}' neste tenant.")
+        if existing.is_superadmin:
+            raise ValueError(
+                f"Email '{email}' já está em uso por um superadmin."
+            )
+        raise ValueError(
+            f"Email '{email}' já está em uso pelo tenant '{existing.tenant_id}'."
+        )
 
     password_hash = auth.hash_password(password)
 
