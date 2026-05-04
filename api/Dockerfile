@@ -14,7 +14,10 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
+# ffmpeg é exigido pelo módulo Bella Atas (chunking de áudio antes do
+# Whisper API). pydub usa ffmpeg via subprocess.
 
 # Instalação de dependências antes do código → cache eficiente em rebuilds.
 COPY api/requirements.txt /tmp/requirements.txt

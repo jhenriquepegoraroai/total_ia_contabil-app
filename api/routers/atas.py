@@ -17,8 +17,15 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request,
 from loguru import logger
 from sqlalchemy import text
 
-from api.atas import jobs_service, pipeline_geracao
-from api.atas.schema import AtaCreate, AtaDetail, AtaInsumosUpdate, AtaSummary
+from api.atas import jobs_service, pipeline_geracao, stt_service
+from api.atas.schema import (
+    AtaCreate,
+    AtaDetail,
+    AtaInsumosUpdate,
+    AtaSummary,
+    AudioUploadRequest,
+    AudioUploadResponse,
+)
 from api.auth import CurrentUser, usuario_atual
 from api.db import tenant_session
 from api.tenants.deps import require_module
@@ -117,14 +124,144 @@ async def detalhe_ata(
 # Stubs de pipeline — 501 até fase correspondente
 # =============================================================================
 @router.post(
-    "/{ata_id}/audio",
+    "/{ata_id}/audio/upload-url",
+    response_model=AudioUploadResponse,
     dependencies=[Depends(require_module("atas"))],
 )
-async def upload_audio(
+async def gerar_url_upload_audio(
+    ata_id: UUID,
+    payload: AudioUploadRequest,
+    user: Annotated[CurrentUser, Depends(tenant_user_required)],
+) -> AudioUploadResponse:
+    """
+    Gera SAS URL pro frontend fazer PUT direto no storage. Cria linha
+    placeholder em `atas_audios(status='uploaded')` antes de devolver.
+
+    Frontend depois chama POST /atas/{id}/audio/{audio_id}/concluir pra
+    confirmar e disparar a transcrição.
+
+    Storage tem que ser azure_blob — outros providers levantam 501.
+    """
+    if user.is_superadmin:
+        raise HTTPException(
+            status_code=403,
+            detail="Superadmin não sobe áudio — use a conta do consultor.",
+        )
+
+    try:
+        info = await stt_service.gerar_sas_upload(
+            tenant_id=user.tenant_id,
+            ata_id=ata_id,
+            uploaded_by_user_id=UUID(user.user_id),
+            file_name=payload.file_name,
+            file_size_bytes=payload.file_size_bytes,
+            content_type=payload.content_type,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except NotImplementedError as exc:
+        raise HTTPException(status_code=501, detail=str(exc)) from exc
+
+    return AudioUploadResponse(
+        audio_id=info.audio_id,
+        upload_url=info.upload_url,
+        storage_key=info.storage_key,
+        expires_in_seconds=info.expires_in_seconds,
+    )
+
+
+@router.post(
+    "/{ata_id}/audio/{audio_id}/concluir",
+    status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(require_module("atas"))],
+)
+async def confirmar_upload_audio(
+    ata_id: UUID,
+    audio_id: UUID,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    user: Annotated[CurrentUser, Depends(tenant_user_required)],
+) -> dict[str, Any]:
+    """
+    Confirma que o PUT direto no storage terminou. Backend valida que o
+    blob existe, marca atas_audios.status='transcribing' e agenda a
+    transcrição em background. Retorna 202 imediato.
+
+    UI faz polling em GET /atas/{id} ou GET /atas/{id}/audios pra ver o
+    status mudar pra `done` (transcrição concluída) ou `failed`.
+    """
+    if user.is_superadmin:
+        raise HTTPException(
+            status_code=403,
+            detail="Superadmin não confirma upload — use a conta do consultor.",
+        )
+
+    registry = request.app.state.tenant_registry
+    tenant_config = registry.get(user.tenant_id, only_enabled=True)
+
+    try:
+        info = await stt_service.confirmar_upload(
+            tenant_config=tenant_config,
+            ata_id=ata_id,
+            audio_id=audio_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    background_tasks.add_task(
+        stt_service.transcrever_em_background,
+        tenant_config=tenant_config,
+        ata_id=ata_id,
+        audio_id=audio_id,
+    )
+    logger.info(
+        f"[atas] transcrição agendada audio={audio_id} ata={ata_id} tenant={user.tenant_id}"
+    )
+    return info
+
+
+@router.get(
+    "/{ata_id}/audios",
+    dependencies=[Depends(require_module("atas"))],
+)
+async def listar_audios(
     ata_id: UUID,
     user: Annotated[CurrentUser, Depends(tenant_user_required)],
-) -> None:
-    raise HTTPException(status_code=501, detail="Implementado na Fase 6 (STT).")
+) -> list[dict[str, Any]]:
+    """Lista uploads de áudio da ata, com status atual de cada um."""
+    async with tenant_session(user.tenant_id) as session:
+        rows = (await session.execute(
+            text(
+                """
+                SELECT id, ata_id, tenant_id, file_name, file_size_bytes,
+                       duracao_segundos, status, qtde_chunks,
+                       custo_estimado_usd, error_detail, uploaded_by_user_id,
+                       uploaded_at, transcribed_at
+                FROM atas_audios
+                WHERE ata_id = :ata AND tenant_id = :tid
+                ORDER BY uploaded_at DESC
+                """
+            ),
+            {"ata": str(ata_id), "tid": user.tenant_id},
+        )).mappings().all()
+    return [
+        {
+            "id": str(r["id"]),
+            "ata_id": str(r["ata_id"]),
+            "tenant_id": r["tenant_id"],
+            "file_name": r["file_name"],
+            "file_size_bytes": r["file_size_bytes"],
+            "duracao_segundos": float(r["duracao_segundos"]) if r["duracao_segundos"] is not None else None,
+            "status": r["status"],
+            "qtde_chunks": r["qtde_chunks"],
+            "custo_estimado_usd": float(r["custo_estimado_usd"]) if r["custo_estimado_usd"] is not None else None,
+            "error_detail": r["error_detail"],
+            "uploaded_by_user_id": str(r["uploaded_by_user_id"]) if r["uploaded_by_user_id"] else None,
+            "uploaded_at": r["uploaded_at"],
+            "transcribed_at": r["transcribed_at"],
+        }
+        for r in rows
+    ]
 
 
 @router.put(

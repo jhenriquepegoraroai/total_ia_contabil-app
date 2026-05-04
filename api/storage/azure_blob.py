@@ -35,6 +35,7 @@ class AzureBlobStorage(Storage):
         sas_token: str | None = None,
         account_key: str | None = None,
         connection_string: str | None = None,
+        public_endpoint: str | None = None,
     ):
         try:
             from azure.storage.blob.aio import BlobServiceClient  # noqa: F401
@@ -49,14 +50,43 @@ class AzureBlobStorage(Storage):
         self._sas_token = sas_token
         self._account_key = account_key
         self._connection_string = connection_string
+        # Endpoint público que aparece nas SAS URLs (usado pelo browser).
+        # Em DEV, aponta pro Azurite via localhost; em prod, blob.core.windows.net.
+        # Se não vier, deriva de account_name ou da conn string.
+        self._public_endpoint = public_endpoint or self._derivar_public_endpoint()
 
-        if not (sas_token or account_key or connection_string):
+        # Quando só conn string vem, extrai o account_key dela pra poder
+        # gerar SAS (`generate_blob_sas` precisa da key).
+        if connection_string and not account_key:
+            self._account_key = self._extrair_account_key(connection_string)
+
+        if not (sas_token or self._account_key or connection_string):
             logger.info(
                 "AzureBlobStorage sem credencial explícita — usando "
-                "Managed Identity (recomendado em prod)."
+                "Managed Identity (recomendado em prod). signed_url_upload "
+                "exige account_key ou User Delegation Key."
             )
 
-        logger.info(f"AzureBlobStorage iniciado account={account} container={container}")
+        logger.info(
+            f"AzureBlobStorage iniciado account={account} container={container} "
+            f"public_endpoint={self._public_endpoint}"
+        )
+
+    def _derivar_public_endpoint(self) -> str:
+        """Deriva endpoint público se não foi informado explicitamente."""
+        if self._connection_string:
+            for parte in self._connection_string.split(";"):
+                if parte.startswith("BlobEndpoint="):
+                    return parte.split("=", 1)[1].rstrip("/")
+        # Default: Azure real
+        return f"https://{self._account}.blob.core.windows.net"
+
+    @staticmethod
+    def _extrair_account_key(conn_str: str) -> str | None:
+        for parte in conn_str.split(";"):
+            if parte.startswith("AccountKey="):
+                return parte.split("=", 1)[1]
+        return None
 
     def _service_client(self):
         """Cria BlobServiceClient para uma operação. Caller fecha com `async with`."""
@@ -133,12 +163,45 @@ class AzureBlobStorage(Storage):
         return out
 
     async def signed_url(self, key: str, *, expires_in_seconds: int = 600) -> str:
-        """Gera SAS URL (precisa account_key ou User Delegation Key)."""
+        """Gera SAS URL de LEITURA (precisa account_key ou User Delegation Key)."""
+        return self._gerar_sas(
+            key=key,
+            expires_in_seconds=expires_in_seconds,
+            permission_kwargs={"read": True},
+        )
+
+    async def signed_url_upload(
+        self,
+        key: str,
+        *,
+        expires_in_seconds: int = 1800,
+        content_type: str | None = None,
+    ) -> str:
+        """
+        Gera SAS URL de UPLOAD (PUT direto pelo browser/cliente).
+
+        Permissões: write + create. Cliente precisa enviar o header
+        `x-ms-blob-type: BlockBlob` no PUT. Se `content_type` for passado,
+        deve coincidir com o `Content-Type` do PUT do cliente.
+        """
+        kwargs: dict[str, object] = {"write": True, "create": True}
+        return self._gerar_sas(
+            key=key,
+            expires_in_seconds=expires_in_seconds,
+            permission_kwargs=kwargs,
+        )
+
+    def _gerar_sas(
+        self,
+        *,
+        key: str,
+        expires_in_seconds: int,
+        permission_kwargs: dict,
+    ) -> str:
+        """Helper interno — monta SAS URL completa usando o public_endpoint."""
         from azure.storage.blob import generate_blob_sas, BlobSasPermissions
 
         if not self._account_key:
-            # Sem account_key, geração de SAS exige User Delegation Key (Managed
-            # Identity). Por simplicidade do MVP, levantamos — em prod, ativar.
             raise StorageError(
                 "signed_url do Azure Blob requer account_key ou User Delegation Key. "
                 "Implementar Managed Identity + UDK em prod."
@@ -149,10 +212,12 @@ class AzureBlobStorage(Storage):
             container_name=self._container,
             blob_name=key,
             account_key=self._account_key,
-            permission=BlobSasPermissions(read=True),
+            permission=BlobSasPermissions(**permission_kwargs),
             expiry=datetime.now(timezone.utc) + timedelta(seconds=expires_in_seconds),
         )
-        return f"https://{self._account}.blob.core.windows.net/{self._container}/{key}?{sas}"
+        # Usa endpoint público (em DEV aponta pro localhost do Azurite, em
+        # prod pro blob.core.windows.net). O endpoint já vem sem `/`-final.
+        return f"{self._public_endpoint}/{self._container}/{key}?{sas}"
 
     async def exists(self, key: str) -> bool:
         async with self._service_client() as svc:

@@ -97,6 +97,17 @@ DEFAULT_SIMILARITY_THRESHOLD: Final[float] = float(
 STORAGE_PROVIDER: Final[str] = _optional("STORAGE_PROVIDER", "local")
 STORAGE_LOCAL_PATH: Final[str] = _optional("STORAGE_LOCAL_PATH", "/app/data/storage")
 
+# Azure Blob — só relevante se STORAGE_PROVIDER=azure_blob.
+# Em DEV usar Azurite (connection string padrão); em prod, conn string da
+# Azure Storage account ou Managed Identity (sem key/sas).
+AZURE_STORAGE_CONNECTION_STRING: Final[str] = _optional("AZURE_STORAGE_CONNECTION_STRING", "")
+AZURE_STORAGE_ACCOUNT: Final[str] = _optional("AZURE_STORAGE_ACCOUNT", "")
+AZURE_BLOB_CONTAINER: Final[str] = _optional("AZURE_BLOB_CONTAINER", "")
+# Endpoint público (visível no SAS URL gerado). Em DEV aponta pro Azurite
+# via localhost; em prod, blob.core.windows.net. Permite que o backend
+# acesse via DNS interno (azurite:10000) e o browser via host (localhost:10000).
+AZURE_BLOB_PUBLIC_ENDPOINT: Final[str] = _optional("AZURE_BLOB_PUBLIC_ENDPOINT", "")
+
 # -----------------------------------------------------------------------------
 # Tenants
 # -----------------------------------------------------------------------------

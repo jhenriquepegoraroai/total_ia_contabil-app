@@ -30,9 +30,15 @@ def get_storage() -> Storage:
 
     if provider == "azure_blob":
         from .azure_blob import AzureBlobStorage
+        # Connection string tem prioridade — cobre o caso DEV (Azurite) e
+        # PROD com conn string. Se ausente, cai no par account+container
+        # (assume Managed Identity ou variantes setadas via env).
+        conn = config.AZURE_STORAGE_CONNECTION_STRING or None
         return AzureBlobStorage(
-            account=__getattr_or_raise("AZURE_STORAGE_ACCOUNT"),
-            container=__getattr_or_raise("AZURE_BLOB_CONTAINER"),
+            account=config.AZURE_STORAGE_ACCOUNT or __getattr_or_raise("AZURE_STORAGE_ACCOUNT"),
+            container=config.AZURE_BLOB_CONTAINER or __getattr_or_raise("AZURE_BLOB_CONTAINER"),
+            connection_string=conn,
+            public_endpoint=config.AZURE_BLOB_PUBLIC_ENDPOINT or None,
         )
 
     raise ValueError(

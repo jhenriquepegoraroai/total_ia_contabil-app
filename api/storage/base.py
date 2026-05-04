@@ -69,6 +69,26 @@ class Storage(ABC):
         """
         ...
 
+    async def signed_url_upload(
+        self,
+        key: str,
+        *,
+        expires_in_seconds: int = 1800,
+        content_type: str | None = None,
+    ) -> str:
+        """
+        Gera URL temporária para UPLOAD direto (PUT) pelo cliente. Em prod
+        com Azure Blob/S3, evita que o backend seja proxy de arquivos
+        grandes (áudios de 2h podem passar de 100MB).
+
+        Implementação opcional — providers que não suportam levantam
+        NotImplementedError. Hoje só Azure Blob implementa (Fase 6 STT).
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} não suporta signed_url_upload. "
+            "Use STORAGE_PROVIDER=azure_blob."
+        )
+
     @abstractmethod
     async def exists(self, key: str) -> bool:
         """True se o objeto existe."""

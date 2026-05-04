@@ -35,6 +35,31 @@ services:
       timeout: 3s
       retries: 5
 
+  # Azurite — emulador local do Azure Blob Storage. Usado pelo módulo Bella
+  # Atas pra signed URLs de upload de áudio (Fase 6 STT). Em prod, trocar
+  # por Azure Blob real. Account key é fixa e pública do Azurite — não é
+  # secret. Mais info: github.com/Azure/Azurite
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:latest
+    container_name: avc_azurite
+    restart: unless-stopped
+    # Listen em 0.0.0.0 pra aceitar conexões do container `api` (DNS docker)
+    # E do browser via host. --skipApiVersionCheck aceita SDKs novos.
+    command:
+      - azurite
+      - --blobHost
+      - "0.0.0.0"
+      - --blobPort
+      - "10000"
+      - --location
+      - "/data"
+      - --skipApiVersionCheck
+      - --loose
+    ports:
+      - "10000:10000"
+    volumes:
+      - azurite_data:/data
+
   api:
     build:
       context: .
@@ -53,6 +78,14 @@ services:
       REDIS_URL: redis://redis:6379/0
       OPEN_AI_KEY: ${OPEN_AI_KEY}
       SECRET_KEY_JWT: ${SECRET_KEY_JWT}
+      # Storage — módulo Bella Atas usa Azure Blob (Azurite em DEV) pra áudios.
+      STORAGE_PROVIDER: ${STORAGE_PROVIDER:-local}
+      AZURE_STORAGE_CONNECTION_STRING: ${AZURE_STORAGE_CONNECTION_STRING:-}
+      AZURE_STORAGE_ACCOUNT: ${AZURE_STORAGE_ACCOUNT:-devstoreaccount1}
+      AZURE_BLOB_CONTAINER: ${AZURE_BLOB_CONTAINER:-bella}
+      # Endpoint público que aparece nas SAS URLs (browser usa). Em DEV
+      # aponta pro Azurite via localhost; em prod, é o blob.core.windows.net.
+      AZURE_BLOB_PUBLIC_ENDPOINT: ${AZURE_BLOB_PUBLIC_ENDPOINT:-http://localhost:10000/devstoreaccount1}
     ports:
       - "8000:8000"
     volumes:
@@ -88,3 +121,4 @@ volumes:
   redis_data:
   web_node_modules:
   web_next_cache:
+  azurite_data:

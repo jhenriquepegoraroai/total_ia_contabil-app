@@ -150,3 +150,23 @@ class AtaAudio(BaseModel):
     uploaded_by_user_id: str | None
     uploaded_at: datetime
     transcribed_at: datetime | None
+
+
+# =============================================================================
+# Audio upload (Fase 6 STT)
+# =============================================================================
+class AudioUploadRequest(BaseModel):
+    """Pedido pra obter SAS URL de upload direto pro storage."""
+
+    file_name: str = Field(..., min_length=1, max_length=255)
+    file_size_bytes: int = Field(..., ge=1, le=2 * 1024 * 1024 * 1024)  # 2GB max
+    content_type: str | None = None
+
+
+class AudioUploadResponse(BaseModel):
+    """Resposta com SAS URL — frontend faz PUT direto."""
+
+    audio_id: str
+    upload_url: str
+    storage_key: str
+    expires_in_seconds: int
