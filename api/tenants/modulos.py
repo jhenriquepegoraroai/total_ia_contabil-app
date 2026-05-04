@@ -44,6 +44,14 @@ MODULOS_DISPONIVEIS: dict[str, ModuloInfo] = {
         label="Bella Chat",
         descricao="Assistente virtual condominial (chatbot RAG sobre documentos).",
     ),
+    "cobrancas": ModuloInfo(
+        slug="cobrancas",
+        label="Bella Cobranças",
+        descricao=(
+            "Extração inteligente de PDFs de cobrança condominial em JSON "
+            "estruturado (módulo implementado em branch paralelo)."
+        ),
+    ),
     "atas": ModuloInfo(
         slug="atas",
         label="Bella Atas",
