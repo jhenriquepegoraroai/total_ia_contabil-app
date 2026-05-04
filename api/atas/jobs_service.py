@@ -135,3 +135,49 @@ async def registrar_acao(
             "dj": json.dumps(detalhe or {}),
         },
     )
+
+
+# =============================================================================
+# Insumos (entrada do gerador)
+# =============================================================================
+async def atualizar_insumos(
+    session: AsyncSession,
+    *,
+    tenant_id: str,
+    ata_id: UUID,
+    patch: dict[str, Any],
+    ator_user_id: UUID | None,
+) -> dict[str, Any]:
+    """
+    Faz merge dos campos não-nulos do `patch` no `atas.insumos_json`.
+
+    Retorna o dict mesclado pós-update. Levanta ValueError se ata não
+    existir no tenant. Não comita — caller decide.
+    """
+    import json
+
+    ata = await buscar_ata(session, tenant_id, ata_id)
+    if not ata:
+        raise ValueError(f"Ata {ata_id} não encontrada no tenant {tenant_id}.")
+
+    insumos_existentes = ata.get("insumos_json") or {}
+    # Só sobrescreve campos que vieram com valor (None = não tocar).
+    novos = {**insumos_existentes, **{k: v for k, v in patch.items() if v is not None}}
+
+    await session.execute(
+        text(
+            "UPDATE atas SET insumos_json = CAST(:ij AS JSONB), updated_at = NOW() "
+            "WHERE id = :aid AND tenant_id = :tid"
+        ),
+        {"ij": json.dumps(novos), "aid": str(ata_id), "tid": tenant_id},
+    )
+
+    await registrar_acao(
+        session,
+        tenant_id=tenant_id,
+        ata_id=ata_id,
+        ator_user_id=ator_user_id,
+        acao="editada_consultor",
+        detalhe={"campos_atualizados": sorted(k for k, v in patch.items() if v is not None)},
+    )
+    return novos

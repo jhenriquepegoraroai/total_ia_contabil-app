@@ -62,6 +62,27 @@ class AtaCreate(BaseModel):
     presidente_user_id: UUID | None = None
 
 
+class AtaInsumosUpdate(BaseModel):
+    """
+    Atualiza os insumos da geração de uma ata.
+
+    Pelo menos `cabecalho` e `resumo` precisam estar presentes na hora do
+    `POST /atas/{id}/gerar` — mas aceitamos updates parciais aqui pra UX
+    (consultor pode salvar rascunho e voltar depois).
+
+    Campos espelham `InsumosGeracao` em pipeline_geracao.py.
+    """
+
+    cabecalho: str | None = None                 # HTML com dados oficiais do condomínio
+    resumo: str | None = None                    # texto da assembleia (ou transcrição STT)
+    edital: str | None = None                    # HTML com pauta (opcional)
+    complemento: str | None = None               # dados complementares de votação/eleição
+    assinatura_eletronica: bool | None = None
+    nome_presidente: str | None = None
+    nome_secretario: str | None = None
+    cnpj_condominio: str | None = None
+
+
 # =============================================================================
 # Outputs
 # =============================================================================

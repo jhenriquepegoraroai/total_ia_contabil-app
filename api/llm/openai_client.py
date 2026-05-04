@@ -142,6 +142,15 @@ class LLMClient:
         )
         return (resp.choices[0].message.content or pergunta).strip()
 
+    @property
+    def async_client(self):
+        """
+        Acesso ao `AsyncOpenAI` interno, para casos que precisam chamar
+        endpoints que não estão no wrapper (ex: pipelines de atas que usam
+        modelos diferentes do completion_model padrão, ou Whisper).
+        """
+        return self._client
+
     async def aclose(self) -> None:
         await self._client.close()
 
