@@ -10,6 +10,7 @@ pgvector==0.3.6
 openai==1.57.0
 tiktoken==0.8.0
 pypdf==5.1.0
+beautifulsoup4==4.12.3      # parser HTML pra módulo atas (comparador + corretor)
 
 # Connectors externos (Fase 6.2)
 aioboto3==13.4.0           # AWS S3 (storage + connector)
