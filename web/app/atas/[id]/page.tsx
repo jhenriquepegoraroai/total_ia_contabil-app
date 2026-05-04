@@ -18,6 +18,7 @@ import {
 
 import { AtaEditor, AtaViewer } from "@/components/atas/editor";
 import { AtaStatusBadge } from "@/components/atas/status-badge";
+import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -278,18 +279,21 @@ export default function AtaDetailPage() {
       </main>
     );
   }
+  if (!sessao) return null;
   if (!ata) {
     return (
-      <main className="flex-1 max-w-3xl mx-auto px-4 py-8">
-        <Button asChild variant="ghost" size="sm" className="mb-4">
-          <Link href="/atas"><ArrowLeft className="h-4 w-4" /> Voltar</Link>
-        </Button>
-        <Card>
-          <CardContent className="p-8 text-center text-muted-foreground">
-            Ata não encontrada.
-          </CardContent>
-        </Card>
-      </main>
+      <AppShell tenantId={sessao.tenant_id} role={sessao.role} modulos={sessao.modulos_contratados}>
+        <main className="flex-1 max-w-3xl mx-auto px-4 py-8">
+          <Button asChild variant="ghost" size="sm" className="mb-4">
+            <Link href="/atas"><ArrowLeft className="h-4 w-4" /> Voltar</Link>
+          </Button>
+          <Card>
+            <CardContent className="p-8 text-center text-muted-foreground">
+              Ata não encontrada.
+            </CardContent>
+          </Card>
+        </main>
+      </AppShell>
     );
   }
 
@@ -305,6 +309,7 @@ export default function AtaDetailPage() {
   const podeEditar = editavelPeloConsultor || editavelPeloSindico || editavelPeloPresidente;
 
   return (
+    <AppShell tenantId={sessao.tenant_id} role={sessao.role} modulos={sessao.modulos_contratados}>
     <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-8">
       {/* Header + ações --------------------------------------------------- */}
       <Button asChild variant="ghost" size="sm" className="mb-4">
@@ -560,6 +565,7 @@ export default function AtaDetailPage() {
         </CardContent>
       </Card>
     </main>
+    </AppShell>
   );
 }
 

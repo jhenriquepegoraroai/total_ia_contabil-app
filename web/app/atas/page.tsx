@@ -6,11 +6,15 @@ import { useEffect, useState } from "react";
 import { FileText, Loader2, Plus, RefreshCw } from "lucide-react";
 
 import { AtaStatusBadge } from "@/components/atas/status-badge";
+import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ApiError, atasListar } from "@/lib/api";
 import { lerSessao } from "@/lib/auth";
 import type { AtaSummary } from "@/lib/types";
+
+
+type Sessao = NonNullable<ReturnType<typeof lerSessao>>;
 
 
 /**
@@ -29,6 +33,7 @@ const STATUS_POLLING = new Set([
 
 export default function AtasListPage() {
   const router = useRouter();
+  const [sessao, setSessao] = useState<Sessao | null>(null);
   const [atas, setAtas] = useState<AtaSummary[] | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [moduloOk, setModuloOk] = useState<boolean | null>(null);
@@ -44,6 +49,7 @@ export default function AtasListPage() {
       router.replace("/admin");
       return;
     }
+    setSessao(s);
     if (!s.modulos_contratados.atas) {
       setModuloOk(false);
       return;
@@ -76,7 +82,7 @@ export default function AtasListPage() {
     return () => clearInterval(id);
   }, [atas]);
 
-  if (moduloOk === null) {
+  if (moduloOk === null || !sessao) {
     return (
       <main className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -86,25 +92,28 @@ export default function AtasListPage() {
 
   if (moduloOk === false) {
     return (
-      <main className="min-h-screen flex items-center justify-center px-4">
-        <Card className="max-w-md w-full">
-          <CardContent className="p-8 text-center">
-            <FileText className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
-            <p className="font-semibold">Bella Atas não está habilitado</p>
-            <p className="text-sm text-muted-foreground mt-2">
-              Seu plano atual não inclui o módulo Bella Atas. Entre em contato
-              com sua administradora pra contratar.
-            </p>
-            <Button asChild variant="outline" className="mt-4">
-              <Link href="/">Voltar pro início</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </main>
+      <AppShell tenantId={sessao.tenant_id} role={sessao.role} modulos={sessao.modulos_contratados}>
+        <main className="flex-1 flex items-center justify-center px-4 py-12">
+          <Card className="max-w-md w-full">
+            <CardContent className="p-8 text-center">
+              <FileText className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
+              <p className="font-semibold">Bella Atas não está habilitado</p>
+              <p className="text-sm text-muted-foreground mt-2">
+                Seu plano atual não inclui o módulo Bella Atas. Entre em contato
+                com sua administradora pra contratar.
+              </p>
+              <Button asChild variant="outline" className="mt-4">
+                <Link href="/">Voltar pro início</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </main>
+      </AppShell>
     );
   }
 
   return (
+    <AppShell tenantId={sessao.tenant_id} role={sessao.role} modulos={sessao.modulos_contratados}>
     <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-8">
       <header className="mb-6 flex items-center justify-between">
         <div>
@@ -181,5 +190,6 @@ export default function AtasListPage() {
         </div>
       )}
     </main>
+    </AppShell>
   );
 }

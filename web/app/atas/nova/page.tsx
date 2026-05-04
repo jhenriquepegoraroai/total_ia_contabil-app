@@ -5,11 +5,15 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ArrowLeft, Loader2, Plus } from "lucide-react";
 
+import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ApiError, atasCriar } from "@/lib/api";
 import { lerSessao } from "@/lib/auth";
+
+
+type Sessao = NonNullable<ReturnType<typeof lerSessao>>;
 
 
 /**
@@ -22,6 +26,7 @@ import { lerSessao } from "@/lib/auth";
  */
 export default function NovaAtaPage() {
   const router = useRouter();
+  const [sessao, setSessao] = useState<Sessao | null>(null);
   const [titulo, setTitulo] = useState("");
   const [referencia, setReferencia] = useState("");
   const [enviando, setEnviando] = useState(false);
@@ -41,6 +46,7 @@ export default function NovaAtaPage() {
       router.replace("/");
       return;
     }
+    setSessao(s);
   }, [router]);
 
   async function onSubmit(e: React.FormEvent) {
@@ -60,7 +66,10 @@ export default function NovaAtaPage() {
     }
   }
 
+  if (!sessao) return null;
+
   return (
+    <AppShell tenantId={sessao.tenant_id} role={sessao.role} modulos={sessao.modulos_contratados}>
     <main className="flex-1 max-w-2xl w-full mx-auto px-4 py-8">
       <Button asChild variant="ghost" size="sm" className="mb-4">
         <Link href="/atas">
@@ -127,5 +136,6 @@ export default function NovaAtaPage() {
         </CardContent>
       </Card>
     </main>
+    </AppShell>
   );
 }
