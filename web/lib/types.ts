@@ -33,6 +33,8 @@ export interface TokenResponse {
   user_id: string;
   is_superadmin?: boolean;
   referencia?: string | null;  // condomínio default do usuário
+  role?: string;
+  modulos_contratados?: Record<string, boolean>;
 }
 
 // =============================================================================
@@ -329,4 +331,138 @@ export interface Message {
   duracao_ms?: number;
   pending?: boolean;
   error?: boolean;
+}
+
+// =============================================================================
+// Bella Atas (Fase 8 — UI)
+// =============================================================================
+export type AtaStatus =
+  | "rascunho"
+  | "aguardando_transcricao"
+  | "aguardando_geracao"
+  | "gerada"
+  | "revisao_consultor"
+  | "aguardando_sindico"
+  | "revisao_sindico"
+  | "comparando"
+  | "revisao_consultor_diff"
+  | "aguardando_presidente"
+  | "revisao_presidente"
+  | "revisao_consultor_final"
+  | "corrigindo"
+  | "registrada"
+  | "arquivada"
+  | "falhou";
+
+export type VersaoTipo =
+  | "gerada"
+  | "edicao_consultor"
+  | "edicao_sindico"
+  | "edicao_presidente"
+  | "comparacao"
+  | "correcao_ortografica"
+  | "final";
+
+export interface AtaSummary {
+  id: string;
+  tenant_id: string;
+  titulo: string;
+  referencia: string | null;
+  status: AtaStatus;
+  versao_atual_id: string | null;
+  consultor_user_id: string;
+  sindico_user_id: string | null;
+  presidente_user_id: string | null;
+  erro_detalhe: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AtaInsumos {
+  cabecalho?: string;
+  resumo?: string;
+  edital?: string;
+  complemento?: string;
+  assinatura_eletronica?: boolean;
+  nome_presidente?: string;
+  nome_secretario?: string;
+  cnpj_condominio?: string;
+}
+
+export interface AtaDetail extends AtaSummary {
+  insumos_json: AtaInsumos;
+}
+
+export interface AtaInsumosUpdate {
+  cabecalho?: string | null;
+  resumo?: string | null;
+  edital?: string | null;
+  complemento?: string | null;
+  assinatura_eletronica?: boolean | null;
+  nome_presidente?: string | null;
+  nome_secretario?: string | null;
+  cnpj_condominio?: string | null;
+}
+
+export interface AtaCreatePayload {
+  titulo: string;
+  referencia?: string | null;
+  sindico_user_id?: string | null;
+  presidente_user_id?: string | null;
+}
+
+export interface AtaVersaoSummary {
+  id: string;
+  ata_id: string;
+  tipo: VersaoTipo;
+  metadata_json: Record<string, unknown>;
+  criada_por_user_id: string | null;
+  criada_em: string;
+}
+
+export interface AtaVersao extends AtaVersaoSummary {
+  conteudo_html: string;
+}
+
+export interface AtaDiff {
+  id: string;
+  ata_id: string;
+  tipo: "comparacao";
+  conteudo_html: string;
+  metadata_json: Record<string, unknown>;
+  criada_em: string;
+}
+
+export interface AudioUploadRequest {
+  file_name: string;
+  file_size_bytes: number;
+  content_type?: string;
+}
+
+export interface AudioUploadResponse {
+  audio_id: string;
+  upload_url: string;
+  storage_key: string;
+  expires_in_seconds: number;
+}
+
+export interface AtaAudio {
+  id: string;
+  ata_id: string;
+  tenant_id: string;
+  file_name: string;
+  file_size_bytes: number;
+  duracao_segundos: number | null;
+  status: "uploaded" | "transcribing" | "done" | "failed";
+  qtde_chunks: number | null;
+  custo_estimado_usd: number | null;
+  error_detail: string | null;
+  uploaded_by_user_id: string | null;
+  uploaded_at: string;
+  transcribed_at: string | null;
+}
+
+export interface AprovarDiffPayload {
+  decisao: "aceitar" | "rejeitar";
+  motivo?: string | null;
 }

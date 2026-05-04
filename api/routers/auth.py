@@ -54,6 +54,11 @@ class TokenResponse(BaseModel):
     user_id: str
     is_superadmin: bool = False
     referencia: str | None = None  # condomínio default do usuário, se houver
+    role: str = "morador"
+    # Mapa slug → ativo dos módulos contratados pelo tenant. Frontend usa pra
+    # gatear menu lateral (mostrar "Bella Atas" só se atas=true, etc.). Vazio
+    # quando o tenant não tem nenhum módulo contratado ainda (caso _system).
+    modulos_contratados: dict[str, bool] = {}
 
 
 class LoginRequest(BaseModel):
@@ -129,12 +134,27 @@ async def login(
         f"Login OK email={payload.email} tenant={row.tenant_id} "
         f"superadmin={row.is_superadmin}"
     )
+
+    # Resolve modulos_contratados via registry (tenant_config). Superadmin
+    # roda em `_system` que tem dict vazio — vai pra /admin de qualquer jeito.
+    modulos: dict[str, bool] = {}
+    try:
+        registry = request.app.state.tenant_registry
+        cfg = registry.get(row.tenant_id, only_enabled=False)
+        modulos = dict(cfg.modulos_contratados or {})
+    except Exception:  # noqa: BLE001
+        # Tenant pode não estar carregado no registry (ex: criado depois do
+        # boot ou config inválida). Front trata como sem módulos.
+        modulos = {}
+
     return TokenResponse(
         access_token=token,
         tenant_id=row.tenant_id,
         user_id=str(row.id),
         is_superadmin=row.is_superadmin,
         referencia=row.referencia,
+        role=row.role,
+        modulos_contratados=modulos,
     )
 
 
@@ -170,8 +190,18 @@ async def dev_token(
         role=payload.role,
     )
     _set_auth_cookie(response, token)
+
+    modulos: dict[str, bool] = {}
+    try:
+        cfg = registry.get(payload.tenant_id, only_enabled=False)
+        modulos = dict(cfg.modulos_contratados or {})
+    except Exception:  # noqa: BLE001
+        modulos = {}
+
     return TokenResponse(
         access_token=token,
         tenant_id=payload.tenant_id,
         user_id=payload.user_id,
+        role=payload.role,
+        modulos_contratados=modulos,
     )

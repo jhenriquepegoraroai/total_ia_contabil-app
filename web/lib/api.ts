@@ -7,6 +7,17 @@
 
 import { limparSessao, salvarSessao } from "./auth";
 import type {
+  AprovarDiffPayload,
+  AtaAudio,
+  AtaCreatePayload,
+  AtaDetail,
+  AtaDiff,
+  AtaInsumosUpdate,
+  AtaSummary,
+  AtaVersao,
+  AtaVersaoSummary,
+  AudioUploadRequest,
+  AudioUploadResponse,
   AuditEntry,
   ChatRequest,
   ChatResponse,
@@ -424,6 +435,157 @@ export async function adminListarRowsTabela(
   return request<TableRows>(
     `/admin/tenants/${encodeURIComponent(tenantId)}/tables/${encodeURIComponent(tabela)}${suffix}`
   );
+}
+
+// ===========================================================================
+// Bella Atas (Fase 8 — UI)
+// ===========================================================================
+export async function atasListar(): Promise<AtaSummary[]> {
+  return request<AtaSummary[]>("/atas");
+}
+
+export async function atasCriar(payload: AtaCreatePayload): Promise<AtaDetail> {
+  return request<AtaDetail>("/atas", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function atasBuscar(ataId: string): Promise<AtaDetail> {
+  return request<AtaDetail>(`/atas/${encodeURIComponent(ataId)}`);
+}
+
+export async function atasAtualizarInsumos(
+  ataId: string,
+  payload: AtaInsumosUpdate
+): Promise<AtaDetail> {
+  return request<AtaDetail>(`/atas/${encodeURIComponent(ataId)}/insumos`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function atasGerar(ataId: string): Promise<AtaDetail> {
+  return request<AtaDetail>(`/atas/${encodeURIComponent(ataId)}/gerar`, {
+    method: "POST",
+  });
+}
+
+export async function atasEditarConsultor(
+  ataId: string,
+  conteudoHtml: string
+): Promise<AtaDetail> {
+  return request<AtaDetail>(`/atas/${encodeURIComponent(ataId)}/edicao-consultor`, {
+    method: "PUT",
+    body: JSON.stringify({ conteudo_html: conteudoHtml }),
+  });
+}
+
+export async function atasEnviarSindico(ataId: string): Promise<AtaDetail> {
+  return request<AtaDetail>(`/atas/${encodeURIComponent(ataId)}/enviar-sindico`, {
+    method: "POST",
+  });
+}
+
+export async function atasEnviarPresidente(ataId: string): Promise<AtaDetail> {
+  return request<AtaDetail>(`/atas/${encodeURIComponent(ataId)}/enviar-presidente`, {
+    method: "POST",
+  });
+}
+
+export async function atasDevolver(
+  ataId: string,
+  conteudoHtml: string
+): Promise<AtaDetail> {
+  return request<AtaDetail>(`/atas/${encodeURIComponent(ataId)}/devolver`, {
+    method: "POST",
+    body: JSON.stringify({ conteudo_html: conteudoHtml }),
+  });
+}
+
+export async function atasAprovarDiff(
+  ataId: string,
+  payload: AprovarDiffPayload
+): Promise<AtaDetail> {
+  return request<AtaDetail>(`/atas/${encodeURIComponent(ataId)}/aprovar-diff`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function atasCorrigir(ataId: string): Promise<AtaDetail> {
+  return request<AtaDetail>(`/atas/${encodeURIComponent(ataId)}/corrigir`, {
+    method: "POST",
+  });
+}
+
+export async function atasFinalizar(ataId: string): Promise<AtaDetail> {
+  return request<AtaDetail>(`/atas/${encodeURIComponent(ataId)}/finalizar`, {
+    method: "POST",
+  });
+}
+
+export async function atasListarVersoes(ataId: string): Promise<AtaVersaoSummary[]> {
+  return request<AtaVersaoSummary[]>(`/atas/${encodeURIComponent(ataId)}/versoes`);
+}
+
+export async function atasBuscarVersao(
+  ataId: string,
+  versaoId: string
+): Promise<AtaVersao> {
+  return request<AtaVersao>(
+    `/atas/${encodeURIComponent(ataId)}/versoes/${encodeURIComponent(versaoId)}`
+  );
+}
+
+export async function atasBuscarDiff(ataId: string): Promise<AtaDiff> {
+  return request<AtaDiff>(`/atas/${encodeURIComponent(ataId)}/diff`);
+}
+
+export async function atasUploadAudioUrl(
+  ataId: string,
+  payload: AudioUploadRequest
+): Promise<AudioUploadResponse> {
+  return request<AudioUploadResponse>(
+    `/atas/${encodeURIComponent(ataId)}/audio/upload-url`,
+    { method: "POST", body: JSON.stringify(payload) }
+  );
+}
+
+export async function atasConfirmarUploadAudio(
+  ataId: string,
+  audioId: string
+): Promise<{ audio_id: string; ata_id: string; status: string }> {
+  return request(
+    `/atas/${encodeURIComponent(ataId)}/audio/${encodeURIComponent(audioId)}/concluir`,
+    { method: "POST" }
+  );
+}
+
+export async function atasListarAudios(ataId: string): Promise<AtaAudio[]> {
+  return request<AtaAudio[]>(`/atas/${encodeURIComponent(ataId)}/audios`);
+}
+
+/**
+ * Faz upload direto pro Azure Blob via SAS URL (sem passar pelo backend).
+ * Frontend chama atasUploadAudioUrl primeiro pra obter a URL, depois esta
+ * função faz o PUT.
+ */
+export async function uploadDiretoAzure(
+  uploadUrl: string,
+  file: File
+): Promise<void> {
+  const resp = await fetch(uploadUrl, {
+    method: "PUT",
+    body: file,
+    headers: {
+      "x-ms-blob-type": "BlockBlob",
+      ...(file.type ? { "Content-Type": file.type } : {}),
+    },
+  });
+  if (!resp.ok) {
+    throw new ApiError(resp.status, `Upload pro Azure falhou: ${resp.statusText}`);
+  }
 }
 
 export { ApiError };

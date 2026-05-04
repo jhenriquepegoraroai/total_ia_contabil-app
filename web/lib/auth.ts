@@ -16,6 +16,10 @@ interface StoredSession {
   user_id: string;
   is_superadmin: boolean;
   referencia: string | null;
+  role: string;
+  // Mapa slug → ativo dos módulos contratados pelo tenant. Front usa pra
+  // gatear menu lateral e bloquear telas indisponíveis.
+  modulos_contratados: Record<string, boolean>;
 }
 
 export function salvarSessao(token: TokenResponse): void {
@@ -25,6 +29,8 @@ export function salvarSessao(token: TokenResponse): void {
     user_id: token.user_id,
     is_superadmin: token.is_superadmin ?? false,
     referencia: token.referencia ?? null,
+    role: token.role ?? "morador",
+    modulos_contratados: token.modulos_contratados ?? {},
   };
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
 }
@@ -40,6 +46,8 @@ export function lerSessao(): StoredSession | null {
       user_id: parsed.user_id ?? "",
       is_superadmin: parsed.is_superadmin ?? false,
       referencia: parsed.referencia ?? null,
+      role: parsed.role ?? "morador",
+      modulos_contratados: parsed.modulos_contratados ?? {},
     };
   } catch {
     window.localStorage.removeItem(STORAGE_KEY);
