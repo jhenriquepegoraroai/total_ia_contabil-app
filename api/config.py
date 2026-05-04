@@ -112,3 +112,20 @@ AZURE_BLOB_PUBLIC_ENDPOINT: Final[str] = _optional("AZURE_BLOB_PUBLIC_ENDPOINT",
 # Tenants
 # -----------------------------------------------------------------------------
 TENANTS_CONFIG_DIR: Final[str] = _optional("TENANTS_CONFIG_DIR", "tenants/configs")
+
+# -----------------------------------------------------------------------------
+# E-mail (SMTP) — usado pelo módulo Bella Atas pra notificar síndico/presidente.
+# Provider neutro — funciona com Gmail (app password), AWS SES, SendGrid,
+# Mailgun, Outlook ou qualquer SMTP. Em DEV pode usar Mailtrap free.
+# -----------------------------------------------------------------------------
+SMTP_HOST: Final[str] = _optional("SMTP_HOST", "")
+SMTP_PORT: Final[int] = _int("SMTP_PORT", 587)
+SMTP_USERNAME: Final[str] = _optional("SMTP_USERNAME", "")
+SMTP_PASSWORD: Final[str] = _optional("SMTP_PASSWORD", "")
+# From "default" do Bella — quando o tenant não tem `email_admin` configurado.
+SMTP_FROM_DEFAULT: Final[str] = _optional("SMTP_FROM_DEFAULT", "")
+SMTP_USE_TLS: Final[bool] = _optional("SMTP_USE_TLS", "true").lower() == "true"
+
+# Base pública da web — usada nos links dentro dos e-mails.
+# DEV: http://localhost:3000 ; PROD: https://app.bella-saas.com (ou similar).
+WEB_URL_BASE: Final[str] = _optional("WEB_URL_BASE", "http://localhost:3000")

@@ -17,14 +17,24 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request,
 from loguru import logger
 from sqlalchemy import text
 
-from api.atas import jobs_service, pipeline_geracao, stt_service
+from api.atas import (
+    email_service,
+    jobs_service,
+    pipeline_comparacao,
+    pipeline_correcao,
+    pipeline_geracao,
+    stt_service,
+    workflow,
+)
 from api.atas.schema import (
+    AprovarDiffPayload,
     AtaCreate,
     AtaDetail,
     AtaInsumosUpdate,
     AtaSummary,
     AudioUploadRequest,
     AudioUploadResponse,
+    ConteudoHTMLPayload,
 )
 from api.auth import CurrentUser, usuario_atual
 from api.db import tenant_session
@@ -404,6 +414,383 @@ async def gerar_ata(
     return _ata_detail(ata)
 
 
+# =============================================================================
+# Workflow (Fase 7) — edição livre, envio, devolução, aprovação, finalização
+# =============================================================================
+@router.put(
+    "/{ata_id}/edicao-consultor",
+    response_model=AtaDetail,
+    dependencies=[Depends(require_module("atas"))],
+)
+async def editar_consultor(
+    ata_id: UUID,
+    payload: ConteudoHTMLPayload,
+    user: Annotated[CurrentUser, Depends(tenant_user_required)],
+) -> AtaDetail:
+    """Consultor salva edição livre da ata. Cria atas_versoes(tipo='edicao_consultor')."""
+    if user.is_superadmin:
+        raise HTTPException(
+            status_code=403, detail="Superadmin não edita atas."
+        )
+    async with tenant_session(user.tenant_id) as session:
+        result = await workflow.editar_consultor(
+            session,
+            tenant_id=user.tenant_id,
+            ata_id=ata_id,
+            consultor_user_id=UUID(user.user_id),
+            conteudo_html=payload.conteudo_html,
+        )
+        if not result.sucesso:
+            raise HTTPException(status_code=400, detail=result.erro)
+        ata = await jobs_service.buscar_ata(session, user.tenant_id, ata_id)
+    assert ata is not None
+    return _ata_detail(ata)
+
+
+@router.post(
+    "/{ata_id}/enviar-sindico",
+    response_model=AtaDetail,
+    status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(require_module("atas"))],
+)
+async def enviar_sindico(
+    ata_id: UUID,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    user: Annotated[CurrentUser, Depends(tenant_user_required)],
+) -> AtaDetail:
+    """Consultor envia ata atual pra revisão do síndico. Snapshot + e-mail."""
+    if user.is_superadmin:
+        raise HTTPException(status_code=403, detail="Superadmin não envia atas.")
+
+    registry = request.app.state.tenant_registry
+    tenant_config = registry.get(user.tenant_id, only_enabled=True)
+
+    async with tenant_session(user.tenant_id) as session:
+        result = await workflow.enviar_para_sindico(
+            session,
+            tenant_id=user.tenant_id,
+            ata_id=ata_id,
+            consultor_user_id=UUID(user.user_id),
+        )
+        if not result.sucesso:
+            raise HTTPException(status_code=400, detail=result.erro)
+        ata = await jobs_service.buscar_ata(session, user.tenant_id, ata_id)
+        atores = await jobs_service.usuarios_da_ata(session, user.tenant_id, ata_id)
+    assert ata is not None
+
+    sindico = atores.get("sindico")
+    consultor = atores.get("consultor")
+    if sindico and sindico.get("email") and consultor:
+        background_tasks.add_task(
+            email_service.notificar_sindico,
+            tenant_config=tenant_config,
+            ata_id=ata_id,
+            sindico_email=sindico["email"],
+            sindico_nome=sindico.get("nome") or "síndico",
+            consultor_nome=consultor.get("nome") or "Consultor",
+            ata_titulo=ata["titulo"],
+            ata_referencia=ata.get("referencia"),
+        )
+    logger.info(f"[atas] enviada pro síndico ata={ata_id} tenant={user.tenant_id}")
+    return _ata_detail(ata)
+
+
+@router.post(
+    "/{ata_id}/enviar-presidente",
+    response_model=AtaDetail,
+    status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(require_module("atas"))],
+)
+async def enviar_presidente(
+    ata_id: UUID,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    user: Annotated[CurrentUser, Depends(tenant_user_required)],
+) -> AtaDetail:
+    """Consultor envia ata atual pra revisão do presidente."""
+    if user.is_superadmin:
+        raise HTTPException(status_code=403, detail="Superadmin não envia atas.")
+    registry = request.app.state.tenant_registry
+    tenant_config = registry.get(user.tenant_id, only_enabled=True)
+
+    async with tenant_session(user.tenant_id) as session:
+        result = await workflow.enviar_para_presidente(
+            session,
+            tenant_id=user.tenant_id,
+            ata_id=ata_id,
+            consultor_user_id=UUID(user.user_id),
+        )
+        if not result.sucesso:
+            raise HTTPException(status_code=400, detail=result.erro)
+        ata = await jobs_service.buscar_ata(session, user.tenant_id, ata_id)
+        atores = await jobs_service.usuarios_da_ata(session, user.tenant_id, ata_id)
+    assert ata is not None
+
+    presidente = atores.get("presidente")
+    consultor = atores.get("consultor")
+    if presidente and presidente.get("email") and consultor:
+        background_tasks.add_task(
+            email_service.notificar_presidente,
+            tenant_config=tenant_config,
+            ata_id=ata_id,
+            presidente_email=presidente["email"],
+            presidente_nome=presidente.get("nome") or "presidente",
+            consultor_nome=consultor.get("nome") or "Consultor",
+            ata_titulo=ata["titulo"],
+            ata_referencia=ata.get("referencia"),
+        )
+    logger.info(f"[atas] enviada pro presidente ata={ata_id} tenant={user.tenant_id}")
+    return _ata_detail(ata)
+
+
+@router.post(
+    "/{ata_id}/devolver",
+    response_model=AtaDetail,
+    status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(require_module("atas"))],
+)
+async def devolver_ata(
+    ata_id: UUID,
+    payload: ConteudoHTMLPayload,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    user: Annotated[CurrentUser, Depends(tenant_user_required)],
+) -> AtaDetail:
+    """
+    Síndico ou presidente devolve a ata editada. Cria nova versão,
+    move pra 'comparando', agenda BG comparador, notifica consultor.
+    """
+    if user.is_superadmin:
+        raise HTTPException(
+            status_code=403,
+            detail="Superadmin não devolve atas — isso é ato do síndico/presidente.",
+        )
+    registry = request.app.state.tenant_registry
+    tenant_config = registry.get(user.tenant_id, only_enabled=True)
+
+    async with tenant_session(user.tenant_id) as session:
+        result = await workflow.devolver_ator_externo(
+            session,
+            tenant_id=user.tenant_id,
+            ata_id=ata_id,
+            user_id=UUID(user.user_id),
+            conteudo_html=payload.conteudo_html,
+        )
+        if not result.sucesso:
+            raise HTTPException(status_code=400, detail=result.erro)
+        ata = await jobs_service.buscar_ata(session, user.tenant_id, ata_id)
+        atores = await jobs_service.usuarios_da_ata(session, user.tenant_id, ata_id)
+    assert ata is not None
+    assert result.extra is not None
+
+    # 1. Agenda comparador BG
+    extra = result.extra
+    background_tasks.add_task(
+        pipeline_comparacao.comparar_em_background,
+        tenant_id=user.tenant_id,
+        ata_id=ata_id,
+        versao_base_id=UUID(extra["versao_base_id"]),
+        versao_devolvida_id=UUID(extra["versao_devolvida_id"]),
+        proximo_status=extra["proximo_status_pos_compare"],
+    )
+
+    # 2. Notifica consultor (best-effort)
+    consultor = atores.get("consultor")
+    papel = extra["papel"]
+    ator_dict = atores.get(papel)
+    if consultor and consultor.get("email") and ator_dict:
+        background_tasks.add_task(
+            email_service.notificar_devolucao_consultor,
+            tenant_config=tenant_config,
+            ata_id=ata_id,
+            consultor_email=consultor["email"],
+            consultor_nome=consultor.get("nome") or "Consultor",
+            ator_externo_nome=ator_dict.get("nome") or papel,
+            papel_ator=papel,
+            ata_titulo=ata["titulo"],
+            ata_referencia=ata.get("referencia"),
+        )
+    logger.info(f"[atas] devolvida por {papel} ata={ata_id} tenant={user.tenant_id}")
+    return _ata_detail(ata)
+
+
+@router.post(
+    "/{ata_id}/aprovar-diff",
+    response_model=AtaDetail,
+    dependencies=[Depends(require_module("atas"))],
+)
+async def aprovar_diff(
+    ata_id: UUID,
+    payload: AprovarDiffPayload,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    user: Annotated[CurrentUser, Depends(tenant_user_required)],
+) -> AtaDetail:
+    """
+    Consultor aprova ou rejeita o diff produzido pelo comparador.
+
+    - Aceitar (síndico): se tem presidente, envia pra ele; senão, vai pra correção.
+    - Aceitar (presidente): vai pra correção.
+    - Rejeitar (qualquer): volta pro mesmo ator pra editar de novo.
+    """
+    if user.is_superadmin:
+        raise HTTPException(status_code=403, detail="Superadmin não aprova diff.")
+    registry = request.app.state.tenant_registry
+    tenant_config = registry.get(user.tenant_id, only_enabled=True)
+
+    async with tenant_session(user.tenant_id) as session:
+        result = await workflow.aprovar_diff(
+            session,
+            tenant_id=user.tenant_id,
+            ata_id=ata_id,
+            consultor_user_id=UUID(user.user_id),
+            decisao=payload.decisao,
+            motivo=payload.motivo,
+        )
+        if not result.sucesso:
+            raise HTTPException(status_code=400, detail=result.erro)
+        ata = await jobs_service.buscar_ata(session, user.tenant_id, ata_id)
+        atores = await jobs_service.usuarios_da_ata(session, user.tenant_id, ata_id)
+    assert ata is not None
+
+    # Side effects baseados no resultado
+    if result.agendar == "corrigir" and result.extra:
+        background_tasks.add_task(
+            pipeline_correcao.corrigir_em_background,
+            tenant_config=tenant_config,
+            ata_id=ata_id,
+            versao_origem_id=UUID(result.extra["versao_origem_id"]),
+        )
+
+    if result.notificar_papel in ("sindico", "presidente"):
+        ator = atores.get(result.notificar_papel)
+        consultor = atores.get("consultor")
+        if ator and ator.get("email") and consultor:
+            if result.notificar_papel == "sindico":
+                background_tasks.add_task(
+                    email_service.notificar_sindico,
+                    tenant_config=tenant_config,
+                    ata_id=ata_id,
+                    sindico_email=ator["email"],
+                    sindico_nome=ator.get("nome") or "síndico",
+                    consultor_nome=consultor.get("nome") or "Consultor",
+                    ata_titulo=ata["titulo"],
+                    ata_referencia=ata.get("referencia"),
+                )
+            else:
+                background_tasks.add_task(
+                    email_service.notificar_presidente,
+                    tenant_config=tenant_config,
+                    ata_id=ata_id,
+                    presidente_email=ator["email"],
+                    presidente_nome=ator.get("nome") or "presidente",
+                    consultor_nome=consultor.get("nome") or "Consultor",
+                    ata_titulo=ata["titulo"],
+                    ata_referencia=ata.get("referencia"),
+                )
+    logger.info(
+        f"[atas] aprovar_diff decisao={payload.decisao} ata={ata_id} → {result.proximo_status}"
+    )
+    return _ata_detail(ata)
+
+
+@router.post(
+    "/{ata_id}/corrigir",
+    response_model=AtaDetail,
+    status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(require_module("atas"))],
+)
+async def corrigir_ata(
+    ata_id: UUID,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    user: Annotated[CurrentUser, Depends(tenant_user_required)],
+) -> AtaDetail:
+    """
+    Atalho — consultor pula síndico/presidente e dispara o corretor direto
+    sobre a versão atual. Útil quando nem síndico nem presidente vão revisar.
+    """
+    if user.is_superadmin:
+        raise HTTPException(status_code=403, detail="Superadmin não dispara correção.")
+    registry = request.app.state.tenant_registry
+    tenant_config = registry.get(user.tenant_id, only_enabled=True)
+
+    async with tenant_session(user.tenant_id) as session:
+        result = await workflow.disparar_correcao_direta(
+            session,
+            tenant_id=user.tenant_id,
+            ata_id=ata_id,
+            consultor_user_id=UUID(user.user_id),
+        )
+        if not result.sucesso:
+            raise HTTPException(status_code=400, detail=result.erro)
+        ata = await jobs_service.buscar_ata(session, user.tenant_id, ata_id)
+    assert ata is not None and result.extra is not None
+
+    background_tasks.add_task(
+        pipeline_correcao.corrigir_em_background,
+        tenant_config=tenant_config,
+        ata_id=ata_id,
+        versao_origem_id=UUID(result.extra["versao_origem_id"]),
+    )
+    logger.info(f"[atas] correção agendada ata={ata_id} tenant={user.tenant_id}")
+    return _ata_detail(ata)
+
+
+@router.post(
+    "/{ata_id}/finalizar",
+    response_model=AtaDetail,
+    dependencies=[Depends(require_module("atas"))],
+)
+async def finalizar_ata(
+    ata_id: UUID,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    user: Annotated[CurrentUser, Depends(tenant_user_required)],
+) -> AtaDetail:
+    """
+    Consultor finaliza a ata após revisar destaques (caso o corretor tenha
+    devolvido com `salvar=False`). Move pra `registrada` e notifica todos.
+    """
+    if user.is_superadmin:
+        raise HTTPException(status_code=403, detail="Superadmin não finaliza atas.")
+    registry = request.app.state.tenant_registry
+    tenant_config = registry.get(user.tenant_id, only_enabled=True)
+
+    async with tenant_session(user.tenant_id) as session:
+        result = await workflow.finalizar_ata(
+            session,
+            tenant_id=user.tenant_id,
+            ata_id=ata_id,
+            consultor_user_id=UUID(user.user_id),
+        )
+        if not result.sucesso:
+            raise HTTPException(status_code=400, detail=result.erro)
+        ata = await jobs_service.buscar_ata(session, user.tenant_id, ata_id)
+        atores = await jobs_service.usuarios_da_ata(session, user.tenant_id, ata_id)
+    assert ata is not None
+
+    # Notifica todos os atores existentes (best-effort).
+    for papel in ("consultor", "sindico", "presidente"):
+        a = atores.get(papel)
+        if a and a.get("email"):
+            background_tasks.add_task(
+                email_service.notificar_ata_registrada,
+                tenant_config=tenant_config,
+                ata_id=ata_id,
+                destinatario_email=a["email"],
+                destinatario_nome=a.get("nome") or papel,
+                ata_titulo=ata["titulo"],
+                ata_referencia=ata.get("referencia"),
+            )
+    logger.info(f"[atas] finalizada ata={ata_id} tenant={user.tenant_id}")
+    return _ata_detail(ata)
+
+
+# =============================================================================
+# Leitura — versões e diff
+# =============================================================================
 @router.get(
     "/{ata_id}/diff",
     dependencies=[Depends(require_module("atas"))],
@@ -411,30 +798,69 @@ async def gerar_ata(
 async def diff_ata(
     ata_id: UUID,
     user: Annotated[CurrentUser, Depends(tenant_user_required)],
-) -> None:
-    raise HTTPException(status_code=501, detail="Implementado na Fase 4 (comparador).")
+) -> dict[str, Any]:
+    """Retorna a versão tipo='comparacao' mais recente. 404 se nunca houve diff."""
+    async with tenant_session(user.tenant_id) as session:
+        diff = await jobs_service.buscar_diff_mais_recente(session, user.tenant_id, ata_id)
+    if not diff:
+        raise HTTPException(status_code=404, detail="Nenhuma comparação ainda.")
+    return {
+        "id": str(diff["id"]),
+        "ata_id": str(diff["ata_id"]),
+        "tipo": diff["tipo"],
+        "conteudo_html": diff["conteudo_html"],
+        "metadata_json": diff.get("metadata_json") or {},
+        "criada_em": diff["criada_em"],
+    }
 
 
-@router.post(
-    "/{ata_id}/aprovar",
+@router.get(
+    "/{ata_id}/versoes",
     dependencies=[Depends(require_module("atas"))],
 )
-async def aprovar_ata(
+async def listar_versoes(
     ata_id: UUID,
     user: Annotated[CurrentUser, Depends(tenant_user_required)],
-) -> None:
-    raise HTTPException(status_code=501, detail="Implementado na Fase 7 (workflow).")
+) -> list[dict[str, Any]]:
+    """Lista versões da ata (sem conteúdo HTML pra payload menor)."""
+    async with tenant_session(user.tenant_id) as session:
+        versoes = await jobs_service.listar_versoes(session, user.tenant_id, ata_id)
+    return [
+        {
+            "id": str(v["id"]),
+            "ata_id": str(v["ata_id"]),
+            "tipo": v["tipo"],
+            "metadata_json": v.get("metadata_json") or {},
+            "criada_por_user_id": str(v["criada_por_user_id"]) if v.get("criada_por_user_id") else None,
+            "criada_em": v["criada_em"],
+        }
+        for v in versoes
+    ]
 
 
-@router.post(
-    "/{ata_id}/corrigir",
+@router.get(
+    "/{ata_id}/versoes/{versao_id}",
     dependencies=[Depends(require_module("atas"))],
 )
-async def corrigir_ata(
+async def detalhe_versao(
     ata_id: UUID,
+    versao_id: UUID,
     user: Annotated[CurrentUser, Depends(tenant_user_required)],
-) -> None:
-    raise HTTPException(status_code=501, detail="Implementado na Fase 5 (corretor).")
+) -> dict[str, Any]:
+    """Retorna uma versão específica COM conteúdo HTML completo."""
+    async with tenant_session(user.tenant_id) as session:
+        versao = await jobs_service.buscar_versao(session, user.tenant_id, versao_id)
+    if not versao or str(versao["ata_id"]) != str(ata_id):
+        raise HTTPException(status_code=404, detail="Versão não encontrada.")
+    return {
+        "id": str(versao["id"]),
+        "ata_id": str(versao["ata_id"]),
+        "tipo": versao["tipo"],
+        "conteudo_html": versao["conteudo_html"],
+        "metadata_json": versao.get("metadata_json") or {},
+        "criada_por_user_id": str(versao["criada_por_user_id"]) if versao.get("criada_por_user_id") else None,
+        "criada_em": versao["criada_em"],
+    }
 
 
 @router.get(

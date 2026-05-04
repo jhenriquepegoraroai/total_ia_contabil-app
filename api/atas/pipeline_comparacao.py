@@ -352,3 +352,109 @@ def comparar_atas(ata_original: str, ata_comparar: str) -> ResultadoComparacao:
     except Exception as exc:  # noqa: BLE001
         logger.exception(f"[atas/comparacao] falhou: {exc}")
         return ResultadoComparacao(sucesso=False, erro=str(exc))
+
+
+# =============================================================================
+# Background task — usado pelo workflow (Fase 7)
+# =============================================================================
+async def comparar_em_background(
+    *,
+    tenant_id: str,
+    ata_id,                                # UUID
+    versao_base_id,                        # UUID — versão "antes" (que o consultor enviou)
+    versao_devolvida_id,                   # UUID — versão "depois" (editada pelo ator externo)
+    proximo_status: str,                   # 'revisao_consultor_diff' ou 'revisao_consultor_final'
+) -> None:
+    """
+    Carrega 2 versões do DB, roda o comparador, persiste o resultado como
+    nova linha em `atas_versoes(tipo='comparacao')` e move a ata pro
+    `proximo_status`. Engole exceções (registra em erro_detalhe).
+    """
+    import json
+    from sqlalchemy import text
+    from api.atas import jobs_service
+    from api.db import tenant_session
+
+    async with tenant_session(tenant_id) as session:
+        v_base = await jobs_service.buscar_versao(session, tenant_id, versao_base_id)
+        v_devolvida = await jobs_service.buscar_versao(session, tenant_id, versao_devolvida_id)
+
+    if not v_base or not v_devolvida:
+        logger.error(
+            f"[atas/comparacao] versão sumiu antes do diff: base={versao_base_id} "
+            f"devolvida={versao_devolvida_id}"
+        )
+        async with tenant_session(tenant_id) as session:
+            await session.execute(
+                text(
+                    "UPDATE atas SET status='falhou', "
+                    "erro_detalhe='Versões base/devolvida ausentes pra comparação' "
+                    "WHERE id=:aid AND tenant_id=:tid"
+                ),
+                {"aid": str(ata_id), "tid": tenant_id},
+            )
+        return
+
+    resultado = comparar_atas(v_base["conteudo_html"], v_devolvida["conteudo_html"])
+
+    async with tenant_session(tenant_id) as session:
+        if not resultado.sucesso:
+            await session.execute(
+                text(
+                    "UPDATE atas SET status='falhou', erro_detalhe=:err, updated_at=NOW() "
+                    "WHERE id=:aid AND tenant_id=:tid"
+                ),
+                {"err": (resultado.erro or "")[:1000], "aid": str(ata_id), "tid": tenant_id},
+            )
+            return
+
+        # Cria linha imutável de comparação.
+        meta = {
+            "versao_base_id": str(versao_base_id),
+            "versao_devolvida_id": str(versao_devolvida_id),
+            "estatisticas": resultado.estatisticas.to_dict(),
+        }
+        row = (await session.execute(
+            text(
+                """
+                INSERT INTO atas_versoes
+                    (ata_id, tenant_id, tipo, conteudo_html, metadata_json,
+                     criada_por_user_id)
+                VALUES (:aid, :tid, 'comparacao', :html, CAST(:meta AS JSONB), NULL)
+                RETURNING id
+                """
+            ),
+            {
+                "aid": str(ata_id),
+                "tid": tenant_id,
+                "html": resultado.html_comparacao,
+                "meta": json.dumps(meta),
+            },
+        )).first()
+        assert row is not None
+
+        await session.execute(
+            text(
+                "UPDATE atas SET status=:st, updated_at=NOW() "
+                "WHERE id=:aid AND tenant_id=:tid"
+            ),
+            {"st": proximo_status, "aid": str(ata_id), "tid": tenant_id},
+        )
+
+        await jobs_service.registrar_acao(
+            session,
+            tenant_id=tenant_id,
+            ata_id=ata_id,
+            ator_user_id=None,
+            acao="comparacao_concluida",
+            detalhe={
+                "versao_diff_id": str(row.id),
+                "estatisticas": resultado.estatisticas.to_dict(),
+                "proximo_status": proximo_status,
+            },
+        )
+
+    logger.info(
+        f"[atas/comparacao] ata={ata_id} done — diff={row.id} "
+        f"alteração={resultado.estatisticas.percentual_alteracao}%"
+    )

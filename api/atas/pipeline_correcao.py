@@ -501,3 +501,143 @@ async def corrigir_ata(
         qtde_conflitos=0,
         metadata={"caminho": "llm_correcao_ortografica", "llm": meta_llm},
     )
+
+
+# =============================================================================
+# Background task — disparada pelo workflow (Fase 7)
+# =============================================================================
+async def corrigir_em_background(
+    *,
+    tenant_config: TenantConfig,
+    ata_id,                              # UUID
+    versao_origem_id,                    # UUID — versão a corrigir (geralmente comparacao mais recente)
+) -> None:
+    """
+    Carrega versão de origem (HTML do diff), roda corretor, persiste como
+    `atas_versoes(tipo='correcao_ortografica')` ou `(tipo='final')`
+    dependendo de `salvar=True/False`, atualiza ata.status:
+
+      - sucesso + salvar=True  → status='registrada' (terminal)
+      - sucesso + salvar=False → status='revisao_consultor_final' (consultor
+                                  precisa revisar destaques antes de fechar)
+      - falha                  → status='falhou'
+    """
+    import json
+    from sqlalchemy import text
+    from api.atas import jobs_service
+    from api.db import tenant_session
+
+    tenant_id = tenant_config.tenant_id
+
+    async with tenant_session(tenant_id) as session:
+        versao = await jobs_service.buscar_versao(session, tenant_id, versao_origem_id)
+    if not versao:
+        logger.error(f"[atas/correcao] versão {versao_origem_id} sumiu antes da correção")
+        async with tenant_session(tenant_id) as session:
+            await session.execute(
+                text(
+                    "UPDATE atas SET status='falhou', "
+                    "erro_detalhe='Versão de origem ausente pra correção' "
+                    "WHERE id=:aid AND tenant_id=:tid"
+                ),
+                {"aid": str(ata_id), "tid": tenant_id},
+            )
+        return
+
+    resultado = await corrigir_ata(
+        tenant_config=tenant_config,
+        html_comparacao=versao["conteudo_html"],
+    )
+
+    async with tenant_session(tenant_id) as session:
+        if not resultado.sucesso:
+            await session.execute(
+                text(
+                    "UPDATE atas SET status='falhou', erro_detalhe=:err, updated_at=NOW() "
+                    "WHERE id=:aid AND tenant_id=:tid"
+                ),
+                {"err": (resultado.erro or "")[:1000], "aid": str(ata_id), "tid": tenant_id},
+            )
+            await jobs_service.registrar_acao(
+                session,
+                tenant_id=tenant_id,
+                ata_id=ata_id,
+                ator_user_id=None,
+                acao="correcao_falhou",
+                detalhe={"erro": resultado.erro, "versao_origem_id": str(versao_origem_id)},
+            )
+            return
+
+        # `salvar=True`  → tipo='final', status='registrada' (terminal)
+        # `salvar=False` → tipo='correcao_ortografica', status='revisao_consultor_final'
+        tipo_versao = "final" if resultado.salvar else "correcao_ortografica"
+        proximo_status = "registrada" if resultado.salvar else "revisao_consultor_final"
+
+        meta = {
+            "versao_origem_id": str(versao_origem_id),
+            "qtde_conflitos": resultado.qtde_conflitos,
+            **resultado.metadata,
+        }
+        row = (await session.execute(
+            text(
+                """
+                INSERT INTO atas_versoes
+                    (ata_id, tenant_id, tipo, conteudo_html, metadata_json,
+                     criada_por_user_id)
+                VALUES (:aid, :tid, :tipo, :html, CAST(:meta AS JSONB), NULL)
+                RETURNING id
+                """
+            ),
+            {
+                "aid": str(ata_id),
+                "tid": tenant_id,
+                "tipo": tipo_versao,
+                "html": resultado.ata_html,
+                "meta": json.dumps(meta),
+            },
+        )).first()
+        assert row is not None
+
+        await session.execute(
+            text(
+                "UPDATE atas SET versao_atual_id=:vid, status=:st, "
+                "erro_detalhe=NULL, updated_at=NOW() WHERE id=:aid AND tenant_id=:tid"
+            ),
+            {
+                "vid": str(row.id),
+                "st": proximo_status,
+                "aid": str(ata_id),
+                "tid": tenant_id,
+            },
+        )
+
+        await jobs_service.registrar_acao(
+            session,
+            tenant_id=tenant_id,
+            ata_id=ata_id,
+            ator_user_id=None,
+            acao="correcao_concluida",
+            detalhe={
+                "versao_id": str(row.id),
+                "tipo_versao": tipo_versao,
+                "salvar": resultado.salvar,
+                "qtde_conflitos": resultado.qtde_conflitos,
+                "proximo_status": proximo_status,
+            },
+        )
+
+        # Se foi pra 'registrada', registra a ação dedicada pra audit.
+        if proximo_status == "registrada":
+            await jobs_service.registrar_acao(
+                session,
+                tenant_id=tenant_id,
+                ata_id=ata_id,
+                ator_user_id=None,
+                acao="registrada",
+                detalhe={"versao_final_id": str(row.id)},
+            )
+
+    logger.info(
+        f"[atas/correcao] ata={ata_id} done — versão={row.id} "
+        f"tipo={tipo_versao} status={proximo_status}"
+    )

@@ -170,3 +170,19 @@ class AudioUploadResponse(BaseModel):
     upload_url: str
     storage_key: str
     expires_in_seconds: int
+
+
+# =============================================================================
+# Workflow (Fase 7) — payloads
+# =============================================================================
+class ConteudoHTMLPayload(BaseModel):
+    """Body genérico que carrega HTML — usado em edicao-consultor e devolver."""
+
+    conteudo_html: str = Field(..., min_length=1)
+
+
+class AprovarDiffPayload(BaseModel):
+    """Decisão do consultor sobre o diff produzido pelo comparador."""
+
+    decisao: Literal["aceitar", "rejeitar"]
+    motivo: str | None = None              # opcional, pra rejeição

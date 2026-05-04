@@ -12,6 +12,7 @@ tiktoken==0.8.0
 pypdf==5.1.0
 beautifulsoup4==4.12.3      # parser HTML pra módulo atas (comparador + corretor)
 pydub==0.25.1               # split de áudio em chunks pro Whisper API (Fase 6 STT)
+aiosmtplib==3.0.2           # SMTP async pra notificações do módulo atas (Fase 7)
 
 # Connectors externos (Fase 6.2)
 aioboto3==13.4.0           # AWS S3 (storage + connector)

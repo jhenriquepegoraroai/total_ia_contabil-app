@@ -19,7 +19,7 @@ Estrutura geral:
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from api.tenants.modulos import MODULO_SLUGS
 
@@ -221,6 +221,14 @@ class TenantConfig(BaseModel):
     enabled: bool = False
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
+
+    # E-mail do admin/representante da administradora — aparece como From
+    # e Reply-To em todos os e-mails enviados pelo sistema em nome deste
+    # tenant (módulo Bella Atas envia notificação pro síndico/presidente
+    # com FROM = email_admin do tenant). Opcional pra retrocompat dos
+    # tenants existentes; obrigatório quando o módulo `atas` é contratado
+    # — validado em tempo de uso, não aqui.
+    email_admin: EmailStr | None = None
 
     contatos: TenantContatos
     urls: TenantURLs
