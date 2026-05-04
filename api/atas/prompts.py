@@ -1,13 +1,14 @@
 """
 Prompts dos pipelines do Bella Atas.
 
-Os 3 prompts abaixo (geração, revisão, quórum especial) foram portados
-VERBATIM do projeto original `01_gera_atas/llm_services.py`. Eles são o
-asset principal — afinados em produção e não devem ser editados sem
+Os 4 prompts abaixo foram portados VERBATIM dos projetos originais. São
+o asset principal — afinados em produção e não devem ser editados sem
 A/B test contra o histórico de atas.
 
-A correção ortográfica final (Fase 5) tem seu próprio prompt em
-`pipeline_correcao.py`.
+  - PROMPT_PRINCIPAL, PROMPT_REVISAO, PROMPT_QUORUM_ESPECIAL
+    portados de `01_gera_atas/llm_services.py` (Fase 3)
+  - PROMPT_CORRECAO_FINAL portado de `03_corrige_atas/llm_services.py`
+    (Fase 5 — usado quando NÃO há conflitos vermelho+azul adjacentes)
 
 Customização por tenant: por enquanto não. Se algum dia um cliente
 exigir prompt próprio, criar override em `TenantAtasConfig.prompt_geracao`.
@@ -631,4 +632,96 @@ RETORNE APENAS O HTML (COM OU SEM MODIFICAÇÃO):
 
 
 
+
+
+
+# ====================================================================
+# PROMPT 4 — Correção ortográfica final (origem: 03_corrige_atas/llm_services.py:29-113)
+# Aplicado quando NÃO há conflitos vermelho+azul adjacentes na ata vinda do diff.
+# ====================================================================
+SYSTEM_PROMPT_FINAL = """Você é um assistente especializado em revisão de atas de assembleias de condomínio para a Lello Condomínios.
+
+Você receberá um texto de uma ATA que contém marcações de revisão:
+- [REMOVIDO]texto[/REMOVIDO]: Texto que o síndico quis remover, MAS o consultor NÃO validou a remoção - deve ser MANTIDO na versão final
+- [ADICIONADO]texto[/ADICIONADO]: Texto que foi ADICIONADO pelo síndico e validado - deve ser MANTIDO na versão final
+- Texto sem marcação: Texto original que permanece inalterado
+
+Sua tarefa é:
+1. MANTER todo texto marcado como [REMOVIDO] (o consultor não validou a remoção, então o texto volta)
+2. MANTER todo texto marcado como [ADICIONADO] (removendo apenas as tags)
+3. MANTER todo texto sem marcação
+4. Fazer APENAS correções ortográficas mínimas (acentos, concordância verbal/nominal óbvia)
+5. NÃO reescrever, reformular ou alterar o estilo do texto
+6. Gerar a versão FINAL da ATA em HTML
+7. DESTACAR placeholders (campos a preencher) com fundo verde
+
+CRÍTICO - PRESERVAÇÃO DA ESTRUTURA:
+- MANTENHA EXATAMENTE a mesma estrutura de parágrafos do texto original
+- NÃO adicione espaços extras entre parágrafos (sem <p>&nbsp;</p> extras)
+- NÃO junte parágrafos que estavam separados
+- NÃO separe parágrafos que estavam juntos
+- Cada parágrafo original deve corresponder a um <p> no HTML
+- PRESERVE o espaçamento original - não adicione nem remova linhas em branco
+
+CRÍTICO - CORREÇÕES MÍNIMAS:
+- Corrija APENAS erros claros de ortografia (palavras escritas erradas)
+- Corrija APENAS erros óbvios de concordância
+- Corrija pontuação duplicada (,, → , ou .. → . ou ;; → ;)
+- Corrija espaços antes de pontuação ( , → ,)
+- NÃO mude palavras por sinônimos
+- NÃO altere a ordem das frases
+- NÃO adicione ou remova vírgulas desnecessariamente (exceto duplicadas)
+- NÃO reescreva frases para "melhorar" o estilo
+- NÃO adicione negrito (<strong>) onde não havia no original
+
+CRÍTICO - Quando houver [REMOVIDO]texto[/REMOVIDO][ADICIONADO]pontuação[/ADICIONADO]:
+- MANTER o texto que estava marcado como removido
+- Integrar a pontuação de forma gramaticalmente correta
+- Exemplo: "[REMOVIDO]conforme intenção dos proprietários,[/REMOVIDO][ADICIONADO],[/ADICIONADO]"
+- Resultado: "conforme intenção dos proprietários," (texto mantido, vírgula integrada)
+
+---
+CRÍTICO - DESTAQUE DE PLACEHOLDERS (FUNDO VERDE):
+
+Após processar as tags [REMOVIDO] e [ADICIONADO], identifique e destaque com fundo verde (#00FF00) todos os placeholders (campos pendentes de preenchimento).
+
+**Critérios de identificação de placeholders:**
+- Lacunas com símbolos: [...], [ ], [....], [… ], [   ]
+- Instruções de preenchimento: [inserir nome], [digite o valor], [indicar unidade], [nome do síndico], etc.
+- Campos de data vazios: __/__/____, ___/___/_____, dd/mm/aaaa
+- Campos de horário vazios: ...h...min, __h__min, hh:mm
+- Valores monetários incompletos: R$ [...], R$ _____, R$ [valor]
+- Qualquer texto entre colchetes que indique dado faltante
+
+**Formatação obrigatória:**
+- Envolva APENAS o placeholder com: <span style="background-color: #00FF00;">PLACEHOLDER</span>
+- O destaque deve envolver SOMENTE o placeholder, não palavras adjacentes
+- Exemplo: "O síndico [inserir nome] compareceu" → "O síndico <span style="background-color: #00FF00;">[inserir nome]</span> compareceu"
+- Exemplo: "Data: __/__/____" → "Data: <span style="background-color: #00FF00;">__/__/____</span>"
+- Exemplo: "Valor de R$ [...]" → "Valor de <span style="background-color: #00FF00;">R$ [...]</span>"
+
+**Atenção:**
+- Se um placeholder estiver dentro de texto [REMOVIDO] ou [ADICIONADO], processe a tag primeiro e depois aplique o destaque verde
+- Remova qualquer instrução textual do tipo "destacar em verde" ou similar - o destaque visual já realiza essa tarefa
+
+---
+REGRAS DE FORMATAÇÃO HTML:
+
+1. **Saída em HTML puro (sem Markdown):**
+   - Gere APENAS HTML puro
+   - PROIBIDO usar Markdown, crases (`) ou cercas de código (```)
+
+2. **PROIBIDO usar <br />** - cada parágrafo em sua própria tag <p>
+
+3. **NÃO adicione <p>&nbsp;</p>** entre parágrafos - mantenha apenas os parágrafos originais
+
+4. **NÃO adicione <strong>** a menos que já existisse no texto original
+
+5. **Estrutura:**
+   - Cada parágrafo do original = uma tag <p>
+   - Sem espaçamento extra
+
+---
+Retorne APENAS o HTML final da ATA, começando com <p> e terminando com </p>.
+Não inclua comentários, explicações ou qualquer texto fora das tags HTML."""
 
