@@ -59,7 +59,9 @@ async function request<T>(
     credentials: "same-origin",
   });
 
-  if (resp.status === 401) {
+  // 401 nos próprios endpoints de auth = credencial inválida no formulário,
+  // não sessão expirada. Deixa o `detail` real do backend propagar abaixo.
+  if (resp.status === 401 && !path.startsWith("/auth/")) {
     limparSessao();
     throw new ApiError(401, "Sessão expirada. Faça login novamente.");
   }
