@@ -21,6 +21,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from api.tenants.modulos import MODULO_SLUGS
+
 
 # =============================================================================
 # Datasource — Adapter Pattern
@@ -141,6 +143,42 @@ class TenantOpenAIConfig(BaseModel):
 
 
 # =============================================================================
+# Bella Atas — configuração por tenant
+# =============================================================================
+class TenantAtasConfig(BaseModel):
+    """
+    Configuração específica do módulo `atas` deste tenant.
+
+    Hoje só armazena overrides de modelo. No futuro pode receber prompts
+    customizados por administradora (ex: terminologia jurídica específica),
+    formato preferido de exportação (DOCX/PDF), etc.
+
+    A chave OpenAI usada vem do `TenantOpenAIConfig` agregador — segue o
+    mesmo padrão do Bella Chat: ou usa a chave da Lello (mode='lello'),
+    ou a do próprio cliente (mode='custom').
+    """
+
+    # Modelo OpenAI usado nas 3 chamadas (geração, revisão, correção).
+    # String livre — não validamos contra catálogo da OpenAI porque modelos
+    # mudam mais rápido que esta validação.
+    openai_model: str = "gpt-5.4"
+
+    # Modelo Whisper para STT do áudio da assembleia.
+    whisper_model: str = "whisper-1"
+
+    # Tom/temperature do gerador. Defaults conservadores (texto formal).
+    temperature_geracao: float = 0.2
+    temperature_correcao: float = 0.1
+
+    @field_validator("temperature_geracao", "temperature_correcao")
+    @classmethod
+    def validar_temperature(cls, v: float) -> float:
+        if not 0.0 <= v <= 2.0:
+            raise ValueError(f"temperature deve estar em [0.0, 2.0], recebi: {v}")
+        return v
+
+
+# =============================================================================
 # Configuração de RAG / Busca
 # =============================================================================
 class TenantRAGConfig(BaseModel):
@@ -215,6 +253,26 @@ class TenantConfig(BaseModel):
     # Chave = nome lógico ("condominios", "areas"); valor = nome real da tabela
     # ou view no banco do tenant. O adapter resolve.
     schemas_estruturados: dict[str, str] = Field(default_factory=dict)
+
+    # Módulos contratados pelo tenant (slug → ativo). Slugs válidos vêm do
+    # catálogo em `api/tenants/modulos.py`. Default vazio: a contratação é
+    # explícita — o super admin marca via UI no cadastro.
+    modulos_contratados: dict[str, bool] = Field(default_factory=dict)
+
+    # Configuração específica do módulo `atas`. Opcional — só relevante se
+    # o tenant contratou esse módulo.
+    atas: TenantAtasConfig | None = None
+
+    @field_validator("modulos_contratados")
+    @classmethod
+    def validar_modulos(cls, v: dict[str, bool]) -> dict[str, bool]:
+        invalidos = set(v.keys()) - MODULO_SLUGS
+        if invalidos:
+            raise ValueError(
+                f"Módulos desconhecidos: {sorted(invalidos)}. "
+                f"Disponíveis: {sorted(MODULO_SLUGS)}"
+            )
+        return v
 
     @field_validator("tenant_id")
     @classmethod
