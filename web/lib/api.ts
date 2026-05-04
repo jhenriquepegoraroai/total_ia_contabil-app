@@ -566,6 +566,29 @@ export async function atasListarAudios(ataId: string): Promise<AtaAudio[]> {
   return request<AtaAudio[]>(`/atas/${encodeURIComponent(ataId)}/audios`);
 }
 
+export async function atasExportarHtml(
+  ataId: string,
+  fileName: string,
+  versaoId?: string
+): Promise<void> {
+  const qs = versaoId ? `?versao_id=${encodeURIComponent(versaoId)}` : "";
+  const resp = await fetch(`/api/atas/${encodeURIComponent(ataId)}/exportar${qs}`, {
+    credentials: "same-origin",
+  });
+  if (!resp.ok) {
+    const raw = await resp.text();
+    throw new ApiError(resp.status, raw || `${resp.status}`);
+  }
+  const blob = await resp.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${fileName}.html`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+
 /**
  * Faz upload direto pro Azure Blob via SAS URL (sem passar pelo backend).
  * Frontend chama atasUploadAudioUrl primeiro pra obter a URL, depois esta

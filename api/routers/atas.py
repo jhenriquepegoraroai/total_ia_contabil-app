@@ -13,7 +13,9 @@ Os endpoints de pipeline (gerar, comparar, corrigir, transcrever) retornam
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
+from datetime import datetime
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
 from loguru import logger
 from sqlalchemy import text
 
@@ -870,8 +872,129 @@ async def detalhe_versao(
 async def exportar_ata(
     ata_id: UUID,
     user: Annotated[CurrentUser, Depends(tenant_user_required)],
-) -> None:
-    raise HTTPException(status_code=501, detail="Implementado na Fase 9 (exportação).")
+    versao_id: UUID | None = None,
+) -> Response:
+    """
+    Exporta a ata como HTML standalone (download direto).
+
+    Sem `versao_id` na query, exporta a `versao_atual_id`. Passando
+    `?versao_id=<uuid>` baixa uma versão específica (útil pra histórico
+    e auditoria — qualquer linha de atas_versoes desta ata).
+
+    O HTML resultante é auto-suficiente: tem <!DOCTYPE>, charset UTF-8,
+    CSS embutido pra impressão (font, padding, tabelas com bordas) e
+    cabeçalho com título + referência + tipo da versão. Pronto pra abrir
+    em qualquer browser ou anexar em e-mail.
+    """
+    async with tenant_session(user.tenant_id) as session:
+        ata = await jobs_service.buscar_ata(session, user.tenant_id, ata_id)
+        if not ata:
+            raise HTTPException(status_code=404, detail="Ata não encontrada.")
+
+        alvo_id = versao_id or ata.get("versao_atual_id")
+        if not alvo_id:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Ata ainda não tem versão atual. Gere a ata antes de exportar, "
+                    "ou passe ?versao_id=<uuid> de uma versão específica."
+                ),
+            )
+        # `versao_atual_id` vem como UUID, mas se a string vier do queryparam
+        # já é UUID; em ambos os casos o jobs_service aceita.
+        versao = await jobs_service.buscar_versao(
+            session,
+            user.tenant_id,
+            alvo_id if isinstance(alvo_id, UUID) else UUID(str(alvo_id)),
+        )
+        if not versao:
+            raise HTTPException(status_code=404, detail="Versão não encontrada.")
+
+    html_completo = _wrap_html_standalone(
+        titulo=ata["titulo"],
+        referencia=ata.get("referencia"),
+        tipo_versao=versao["tipo"],
+        criada_em=versao["criada_em"],
+        conteudo=versao["conteudo_html"],
+    )
+
+    # Nome de arquivo: título normalizado + extensão. Limita 80 chars
+    # pra não estourar limite do filesystem.
+    base = "".join(c if c.isalnum() or c in "-_ " else "_" for c in ata["titulo"])
+    base = base.strip().replace(" ", "_")[:80] or "ata"
+    download_name = f"{base}.html"
+
+    return Response(
+        content=html_completo.encode("utf-8"),
+        media_type="text/html; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{download_name}"'},
+    )
+
+
+# =============================================================================
+# Helpers de exportação
+# =============================================================================
+def _wrap_html_standalone(
+    *,
+    titulo: str,
+    referencia: str | None,
+    tipo_versao: str,
+    criada_em: datetime,
+    conteudo: str,
+) -> str:
+    """
+    Envelopa o conteúdo HTML da ata em um documento auto-suficiente, com
+    CSS embutido. Estilos visam:
+      - fonte serifada conservadora (Times) — padrão de documento jurídico
+      - tabelas com bordas (a ata gerada usa <table> pra cabeçalho oficial)
+      - placeholders verdes (do gerador) e cores do diff preservadas
+        — já vêm como style inline nos spans, não precisamos repetir aqui
+      - boa formatação de impressão (margens A4)
+    """
+    contexto_ref = f" — Condomínio {referencia}" if referencia else ""
+    data_str = criada_em.strftime("%d/%m/%Y %H:%M") if criada_em else ""
+    css = """
+        body { font-family: 'Times New Roman', Times, serif; line-height: 1.6;
+               color: #1a1a1a; max-width: 21cm; margin: 0 auto; padding: 1cm 1.5cm; }
+        h1 { font-size: 16pt; margin-bottom: 0.5em; }
+        .meta { font-size: 10pt; color: #666; border-bottom: 1px solid #ccc;
+                padding-bottom: 0.5em; margin-bottom: 1em; }
+        p { margin: 0.4em 0; text-align: justify; }
+        table { border-collapse: collapse; width: 100%; margin: 0.5em 0; }
+        th, td { border: 1px solid #999; padding: 0.3em 0.5em; vertical-align: top; }
+        th { background: #f0f0f0; text-align: left; }
+        ul, ol { padding-left: 1.5em; }
+        @media print {
+            body { padding: 0; }
+            .meta { display: none; }
+        }
+    """
+    return (
+        "<!DOCTYPE html>\n"
+        '<html lang="pt-br">\n'
+        "<head>\n"
+        '  <meta charset="utf-8">\n'
+        f"  <title>{_escape(titulo)}</title>\n"
+        f"  <style>{css}</style>\n"
+        "</head>\n"
+        "<body>\n"
+        f"  <h1>{_escape(titulo)}{_escape(contexto_ref)}</h1>\n"
+        f'  <div class="meta">Versão: {_escape(tipo_versao)} · gerada em {data_str}</div>\n'
+        f"  {conteudo}\n"
+        "</body>\n"
+        "</html>\n"
+    )
+
+
+def _escape(s: str | None) -> str:
+    if s is None:
+        return ""
+    return (
+        s.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+    )
 
 
 # =============================================================================

@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   CheckCircle2,
+  Download,
   FileText,
   Loader2,
   Mic,
@@ -34,6 +35,7 @@ import {
   atasEditarConsultor,
   atasEnviarPresidente,
   atasEnviarSindico,
+  atasExportarHtml,
   atasFinalizar,
   atasGerar,
   atasListarAudios,
@@ -240,6 +242,17 @@ export default function AtaDetailPage() {
     await executar("finalizar", async () => {
       await atasFinalizar(ataId);
       setFeedback("Ata registrada.");
+    });
+  }
+
+  async function handleExportar() {
+    if (!ata) return;
+    await executar("exportar", async () => {
+      const baseName =
+        (ata.referencia ? `${ata.referencia}_` : "") +
+        ata.titulo.replace(/\s+/g, "_").slice(0, 60);
+      await atasExportarHtml(ataId, baseName);
+      setFeedback("HTML baixado.");
     });
   }
 
@@ -500,6 +513,20 @@ export default function AtaDetailPage() {
               {ata.status === "revisao_consultor_final" && (
                 <Button onClick={handleFinalizar} disabled={enviando !== null}>
                   <CheckCircle2 className="h-4 w-4" /> Registrar ata
+                </Button>
+              )}
+              {ata.versao_atual_id && (
+                <Button
+                  variant="outline"
+                  onClick={handleExportar}
+                  disabled={enviando !== null}
+                >
+                  {enviando === "exportar" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4" />
+                  )}
+                  Baixar HTML da versão atual
                 </Button>
               )}
             </div>
