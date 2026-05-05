@@ -4,6 +4,14 @@
 .env.*.local
 *.pem
 *.key
+# Anotações com credenciais de teste — nunca commitar.
+instrucao/instrucao.md
+
+# Backups locais (cleanup Maio/2026 — duplicatas que viviam em projeto/)
+.archive/
+
+# Worktrees auxiliares do Claude Code — vivem em projeto/.claude/
+projeto/
 
 # Python
 __pycache__/
