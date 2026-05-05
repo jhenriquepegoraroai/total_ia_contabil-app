@@ -1,33 +1,118 @@
-# Secrets
+# =============================================================================
+# Secrets — NUNCA commitar
+# =============================================================================
+
+# Variáveis de ambiente. Mantém só o `.env.example` (template público).
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+!.env.*.example
+
+# Chaves criptográficas e certificados
 *.pem
 *.key
-# Anotações com credenciais de teste — nunca commitar.
+*.crt
+*.cer
+*.pfx
+*.p12
+*.jks
+
+# Credenciais de provedores (OpenAI, GCP Document AI, AWS, Azure)
+*-credentials.json
+*-service-account*.json
+gcp-*.json
+google-creds*.json
+service-account*.json
+secret*.json
+secrets/
+*.token
+oauth-token*.json
+
+# Anotações com credenciais de teste em texto plano (uso local de DEV)
 instrucao/instrucao.md
 
-# Backups locais (cleanup Maio/2026 — duplicatas que viviam em projeto/)
+
+# =============================================================================
+# Dados locais e uploads — não pertencem ao repo
+# =============================================================================
+
+# Storage local (PDFs, áudios, etc) e dumps de banco
+/data/
+/storage/
+*.sqlite
+*.sqlite3
+*.db
+*.sql
+*.sql.gz
+*.dump
+*.dump.gz
+*.bak
+
+# Uploads de PDF (Bella Cobranças, samples) — exceto package `api/storage/`
+*.pdf
+!api/storage/
+!web/public/**/*.pdf
+
+# Uploads de áudio (Bella Atas — Whisper STT)
+*.mp3
+*.m4a
+*.wav
+*.ogg
+*.webm
+*.flac
+*.aac
+*.opus
+
+
+# =============================================================================
+# Backups e diretórios auxiliares deste repo
+# =============================================================================
+
+# Backup feito em Maio/2026 (duplicatas que viviam em projeto/)
 .archive/
 
-# Worktrees auxiliares do Claude Code — vivem em projeto/.claude/
+# Worktrees auxiliares do Claude Code (vivem em projeto/.claude/)
 projeto/
 
+
+# =============================================================================
 # Python
+# =============================================================================
 __pycache__/
 *.py[cod]
 *$py.class
+*.egg
 *.egg-info/
 .venv/
 venv/
+env/
+.tox/
+.nox/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.pyre/
+.pytype/
+.ipynb_checkpoints/
+
+# Cobertura de testes
 htmlcov/
 .coverage
-*.log
+.coverage.*
+coverage.xml
+*.cover
+.hypothesis/
 
-# Node / Next.js
+# Logs
+*.log
+*.log.*
+pip-log.txt
+pip-delete-this-directory.txt
+
+
+# =============================================================================
+# Node / Next.js / web
+# =============================================================================
 node_modules/
 .next/
 out/
@@ -35,26 +120,68 @@ build/
 dist/
 *.tsbuildinfo
 next-env.d.ts
+.turbo/
+.swc/
 
-# IDE / OS
+# Relatórios de teste E2E (Playwright/Cypress) caso entrem no futuro
+playwright-report/
+test-results/
+cypress/screenshots/
+cypress/videos/
+
+# Logs de package managers
+npm-debug.log*
+yarn-error.log*
+yarn-debug.log*
+pnpm-debug.log*
+.pnpm-store/
+
+
+# =============================================================================
+# Docker — overrides locais (compose.override.yml não vai pro repo)
+# =============================================================================
+.dockerignore.local
+docker-compose.override.yml
+docker-compose.*.local.yml
+
+
+# =============================================================================
+# IDE / Editor / OS
+# =============================================================================
 .idea/
 .vscode/
+.fleet/
+.history/
 *.swp
+*.swo
+*~
+\#*\#
+.#*
+
+# macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
 Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+desktop.ini
+$RECYCLE.BIN/
 
-# Dados locais (uploads de DEV — não inclui o pacote api/storage/)
-/data/
-/storage/
-*.sqlite
-*.db
-ata-*.pdf
-*.pdf
+# Office temp files (Excel/Word/PowerPoint abertos)
+~$*.xlsx
+~$*.xls
+~$*.docx
+~$*.doc
+~$*.pptx
+~$*.ppt
 
-!api/storage/
 
-# Docker
-.dockerignore.local
-
-# Claude
+# =============================================================================
+# Claude Code
+# =============================================================================
 .claude/settings.local.json
