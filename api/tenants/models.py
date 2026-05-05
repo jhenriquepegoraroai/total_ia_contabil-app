@@ -23,6 +23,8 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from api.tenants.modulos import MODULO_SLUGS
 
+from api.tenants.modulos import MODULO_SLUGS
+
 
 # =============================================================================
 # Datasource — Adapter Pattern
@@ -179,6 +181,55 @@ class TenantAtasConfig(BaseModel):
 
 
 # =============================================================================
+# Bella Cobranças — credenciais Google Document AI por tenant
+# =============================================================================
+class TenantCobrancasConfig(BaseModel):
+    """
+    Credenciais e parâmetros do Google Document AI usados pelo módulo
+    Bella Cobranças deste tenant.
+
+    O service account JSON inteiro fica em `gcp_credentials_json` (JSONB
+    no banco). O super admin sobe o arquivo via UI; o backend valida
+    estrutura e mascara `private_key` em todos os GETs.
+
+    `gcs_bucket` é opcional — só necessário para PDFs grandes (>15 páginas)
+    que vão pro pipeline batch.
+
+    Em prod, `gcp_credentials_json` migrará para Secrets Manager via
+    `secret_name` (mesmo padrão da chave OpenAI).
+    """
+
+    gcp_credentials_json: dict[str, Any] | None = None
+    gcp_project_id: str | None = None
+    gcp_location: str = "us"
+    processor_id: str | None = None
+    gcs_bucket: str | None = None
+    secret_name: str | None = None
+
+    @field_validator("gcp_credentials_json")
+    @classmethod
+    def validar_service_account(cls, v: dict[str, Any] | None) -> dict[str, Any] | None:
+        if v is None:
+            return None
+        # Aceita dict mascarado vindo do GET (private_key contém '***') —
+        # o router preserva a chave salva no DB nesse caso.
+        pk = v.get("private_key", "")
+        if isinstance(pk, str) and "***" in pk:
+            return v
+        obrigatorios = {"type", "project_id", "client_email", "private_key"}
+        faltam = obrigatorios - set(v.keys())
+        if faltam:
+            raise ValueError(
+                f"service account JSON faltando campos obrigatórios: {sorted(faltam)}"
+            )
+        if v.get("type") != "service_account":
+            raise ValueError(
+                f"campo 'type' deve ser 'service_account', recebi: {v.get('type')!r}"
+            )
+        return v
+
+
+# =============================================================================
 # Configuração de RAG / Busca
 # =============================================================================
 class TenantRAGConfig(BaseModel):
@@ -271,6 +322,11 @@ class TenantConfig(BaseModel):
     # o tenant contratou esse módulo.
     atas: TenantAtasConfig | None = None
 
+    # Credenciais Google Document AI — relevantes só quando o módulo
+    # `cobrancas` está contratado. Opcional pra permitir cadastro do
+    # tenant antes do JSON estar disponível.
+    cobrancas: TenantCobrancasConfig | None = None
+
     @field_validator("modulos_contratados")
     @classmethod
     def validar_modulos(cls, v: dict[str, bool]) -> dict[str, bool]:
@@ -305,14 +361,16 @@ class TenantConfig(BaseModel):
 
     def to_admin_dict(self) -> dict[str, Any]:
         """
-        Versão segura para a UI de admin — mascara a api_key da OpenAI.
-        Mantém todo o resto inalterado.
+        Versão segura para a UI de admin — mascara a api_key da OpenAI
+        e a private_key do service account Google. Mantém o resto inalterado.
         """
-        from copy import deepcopy
         d = self.model_dump(mode="json")
         api_key = d.get("openai", {}).get("api_key")
         if api_key:
             d["openai"]["api_key"] = mascarar_openai_key(api_key)
+        creds = (d.get("cobrancas") or {}).get("gcp_credentials_json")
+        if creds:
+            d["cobrancas"]["gcp_credentials_json"] = mascarar_gcp_credentials(creds)
         return d
 
 
@@ -326,3 +384,18 @@ def mascarar_openai_key(key: str) -> str:
     if len(key) <= 11:
         return "*" * len(key)
     return f"{key[:7]}...{key[-4:]}"
+
+
+def mascarar_gcp_credentials(creds: dict[str, Any]) -> dict[str, Any]:
+    """
+    Mascara `private_key` num service account JSON. Mantém os outros campos
+    (project_id, client_email, etc.) intactos pra UI poder mostrar resumo.
+
+    O preview da chave preserva só o header BEGIN/END pra deixar visível
+    que é uma chave válida, sem expor o conteúdo.
+    """
+    out = dict(creds)
+    pk = out.get("private_key")
+    if isinstance(pk, str) and pk:
+        out["private_key"] = "-----BEGIN PRIVATE KEY-----\n***\n-----END PRIVATE KEY-----\n"
+    return out

@@ -31,9 +31,9 @@ export interface TokenResponse {
   token_type: string;
   tenant_id: string;
   user_id: string;
+  role?: string;
   is_superadmin?: boolean;
   referencia?: string | null;  // condomínio default do usuário
-  role?: string;
   modulos_contratados?: Record<string, boolean>;
 }
 
@@ -50,6 +50,63 @@ export interface TenantSummary {
   qtde_embeddings: number;
   qtde_users: number;
   datasource_type: string | null;
+  modulos_contratados?: Record<string, boolean>;
+}
+
+/** Item do catálogo de módulos contratáveis (GET /admin/modulos). */
+export interface ModuloInfo {
+  slug: string;
+  label: string;
+  descricao: string;
+}
+
+// =============================================================================
+// Bella Cobranças
+// =============================================================================
+export type CobrancaJobStatus = "queued" | "running" | "done" | "failed";
+
+export interface CobrancaJob {
+  id: string;
+  tenant_id: string;
+  status: CobrancaJobStatus;
+  file_name: string;
+  file_size: number;
+  content_hash: string;
+  qtde_paginas: number | null;
+  qtde_registros: number | null;
+  valor_total: number | null;
+  started_at: string | null;
+  finished_at: string | null;
+  duracao_segundos: number | null;
+  error_detail: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CobrancaRegistro {
+  CONDOMINIO: string | null;
+  UNIDADE: string | null;
+  PRIMEIRO_VENCTO: string | null;
+  MULTA: number | null;
+  EMISSAO: string | null;
+  NR_DO_RECIBO: string | null;
+  REGISTRO_EMISSAO: string | null;
+  SITUACAO: string | null;
+  CONTA: string | null;
+  HISTORICO: string | null;
+  VALOR_ORIGINAL: number | null;
+}
+
+export interface CobrancaJobResult {
+  job_id: string;
+  status: string;
+  registros: CobrancaRegistro[];
+  metadata: {
+    total_registros?: number;
+    total_valor?: number;
+    periodo?: string;
+    data_emissao_relatorio?: string;
+  };
 }
 
 export interface TenantTheme {
@@ -91,6 +148,19 @@ export interface TenantOpenAIConfig {
   secret_name: string | null;
 }
 
+/**
+ * Credenciais Google Document AI por tenant — usadas pelo módulo Bella Cobranças.
+ * Em GETs do admin, `gcp_credentials_json.private_key` vem mascarada.
+ */
+export interface TenantCobrancasConfig {
+  gcp_credentials_json: Record<string, unknown> | null;
+  gcp_project_id: string | null;
+  gcp_location: string;
+  processor_id: string | null;
+  gcs_bucket: string | null;
+  secret_name: string | null;
+}
+
 export interface TenantConfig {
   schema_version?: string;
   tenant_id: string;
@@ -114,6 +184,8 @@ export interface TenantConfig {
   mensagem_nao_encontrada: string;
   regra_concorrentes?: string;
   leis_referencia?: string;
+  modulos_contratados?: Record<string, boolean>;
+  cobrancas?: TenantCobrancasConfig | null;
 }
 
 export interface AuditEntry {
@@ -240,6 +312,25 @@ export interface UpdateUserPayload {
   enabled?: boolean;
   // Para mudar referencia, envie o valor + referencia_set:true. Sem
   // referencia_set, o backend preserva o valor atual.
+  referencia?: string | null;
+  referencia_set?: boolean;
+}
+
+// Roles que o admin do tenant pode atribuir (admin/superadmin excluídos).
+export type TenantUserRoleAtribuivel = "sindico" | "morador" | "atendente";
+
+export interface CreateTenantUserPayload {
+  email: string;
+  nome: string;
+  role: TenantUserRoleAtribuivel;
+  password: string;
+  referencia?: string | null;
+}
+
+export interface UpdateTenantUserPayload {
+  nome?: string;
+  role?: TenantUserRoleAtribuivel;
+  enabled?: boolean;
   referencia?: string | null;
   referencia_set?: boolean;
 }

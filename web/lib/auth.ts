@@ -14,9 +14,9 @@ const STORAGE_KEY = "avc_session";
 interface StoredSession {
   tenant_id: string;
   user_id: string;
+  role: string;
   is_superadmin: boolean;
   referencia: string | null;
-  role: string;
   // Mapa slug → ativo dos módulos contratados pelo tenant. Front usa pra
   // gatear menu lateral e bloquear telas indisponíveis.
   modulos_contratados: Record<string, boolean>;
@@ -27,9 +27,9 @@ export function salvarSessao(token: TokenResponse): void {
   const session: StoredSession = {
     tenant_id: token.tenant_id,
     user_id: token.user_id,
+    role: token.role ?? "morador",
     is_superadmin: token.is_superadmin ?? false,
     referencia: token.referencia ?? null,
-    role: token.role ?? "morador",
     modulos_contratados: token.modulos_contratados ?? {},
   };
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
@@ -44,9 +44,9 @@ export function lerSessao(): StoredSession | null {
     return {
       tenant_id: parsed.tenant_id ?? "",
       user_id: parsed.user_id ?? "",
+      role: parsed.role ?? "morador",
       is_superadmin: parsed.is_superadmin ?? false,
       referencia: parsed.referencia ?? null,
-      role: parsed.role ?? "morador",
       modulos_contratados: parsed.modulos_contratados ?? {},
     };
   } catch {

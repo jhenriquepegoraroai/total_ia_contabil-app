@@ -19,22 +19,28 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ApiError,
+  adminListarModulos,
   adminListarTenants,
   adminToggleEnabled,
 } from "@/lib/api";
-import type { TenantSummary } from "@/lib/types";
+import type { ModuloInfo, TenantSummary } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export default function AdminTenantsPage() {
   const [tenants, setTenants] = useState<TenantSummary[]>([]);
+  const [modulosCatalogo, setModulosCatalogo] = useState<Record<string, ModuloInfo>>({});
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
   async function carregar() {
     try {
-      const data = await adminListarTenants();
+      const [data, catalogo] = await Promise.all([
+        adminListarTenants(),
+        adminListarModulos(),
+      ]);
       setTenants(data);
+      setModulosCatalogo(Object.fromEntries(catalogo.map((m) => [m.slug, m])));
     } catch (err) {
       setErro(err instanceof ApiError ? err.message : String(err));
     } finally {
@@ -138,6 +144,11 @@ export default function AdminTenantsPage() {
                   </div>
                 )}
 
+                <ModulosBadges
+                  modulos={t.modulos_contratados}
+                  catalogo={modulosCatalogo}
+                />
+
                 <div className="flex gap-2 pt-1">
                   <Button asChild variant="outline" size="sm" className="flex-1">
                     <Link href={`/admin/tenants/${t.id}`}>Abrir</Link>
@@ -181,6 +192,32 @@ function Stat({
       <Icon className="h-3.5 w-3.5 mx-auto mb-1 text-muted-foreground" />
       <div className="font-semibold">{value.toLocaleString("pt-BR")}</div>
       <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
+    </div>
+  );
+}
+
+function ModulosBadges({
+  modulos,
+  catalogo,
+}: {
+  modulos: Record<string, boolean> | undefined;
+  catalogo: Record<string, ModuloInfo>;
+}) {
+  const ativos = Object.entries(modulos ?? {})
+    .filter(([, ativo]) => ativo)
+    .map(([slug]) => slug);
+  if (ativos.length === 0) {
+    return (
+      <div className="text-xs text-muted-foreground italic">Sem módulos contratados</div>
+    );
+  }
+  return (
+    <div className="flex flex-wrap gap-1">
+      {ativos.map((slug) => (
+        <Badge key={slug} variant="secondary" className="text-[10px]">
+          {catalogo[slug]?.label ?? slug}
+        </Badge>
+      ))}
     </div>
   );
 }

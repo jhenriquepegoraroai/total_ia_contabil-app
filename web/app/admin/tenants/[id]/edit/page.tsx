@@ -15,8 +15,14 @@ import {
   adminAtualizarTenant,
   adminBuscarTenant,
 } from "@/lib/api";
-import type { TenantConfig, TenantOpenAIConfig } from "@/lib/types";
+import type {
+  TenantCobrancasConfig,
+  TenantConfig,
+  TenantOpenAIConfig,
+} from "@/lib/types";
 import { OpenAIKeyCard } from "@/components/admin/openai-key-card";
+import { ModulosContratadosCard } from "@/components/admin/modulos-checkboxes-card";
+import { CobrancasCard } from "@/components/admin/cobrancas-card";
 
 
 export default function EditTenantPage({
@@ -91,6 +97,12 @@ export default function EditTenantPage({
   }
   function updateOpenAI(novo: TenantOpenAIConfig) {
     setConfig((c) => (c ? { ...c, openai: novo } : c));
+  }
+  function updateModulos(novo: Record<string, boolean>) {
+    setConfig((c) => (c ? { ...c, modulos_contratados: novo } : c));
+  }
+  function updateCobrancas(novo: TenantCobrancasConfig | null) {
+    setConfig((c) => (c ? { ...c, cobrancas: novo } : c));
   }
 
   const openaiValue: TenantOpenAIConfig = config.openai ?? {
@@ -224,6 +236,19 @@ export default function EditTenantPage({
             <ColorField label="Accent" value={theme.accent ?? ""} onChange={(v) => updateTheme({ accent: v })} />
           </CardContent>
         </Card>
+
+        <ModulosContratadosCard
+          value={config.modulos_contratados ?? {}}
+          onChange={updateModulos}
+        />
+
+        {config.modulos_contratados?.cobrancas && (
+          <CobrancasCard
+            value={config.cobrancas ?? null}
+            onChange={updateCobrancas}
+            tenantId={tenantId}
+          />
+        )}
 
         <OpenAIKeyCard value={openaiValue} onChange={updateOpenAI} />
 

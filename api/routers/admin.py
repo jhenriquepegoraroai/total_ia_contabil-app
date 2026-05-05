@@ -10,12 +10,18 @@ from datetime import datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from api.admin import service as admin_service
 from api.auth import CurrentUser, superadmin_required
+from api.cobrancas import testar_conexao_documentai
 from api.db import superadmin_session
-from api.tenants.models import TenantConfig, mascarar_openai_key
+from api.tenants.models import (
+    TenantConfig,
+    mascarar_gcp_credentials,
+    mascarar_openai_key,
+)
+from api.tenants.modulos import MODULOS_DISPONIVEIS
 
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -34,6 +40,33 @@ class TenantSummary(BaseModel):
     qtde_embeddings: int
     qtde_users: int
     datasource_type: str | None = None
+    modulos_contratados: dict[str, bool] = Field(default_factory=dict)
+
+
+class ModuloDisponivel(BaseModel):
+    """Item do catálogo de módulos contratáveis (response do GET /admin/modulos)."""
+
+    slug: str
+    label: str
+    descricao: str
+
+
+class CobrancasTestConnectionRequest(BaseModel):
+    """Payload do POST /admin/cobrancas/test-connection."""
+
+    gcp_credentials_json: dict[str, Any]
+    gcp_project_id: str
+    gcp_location: str = "us"
+    processor_id: str
+    # Se vier preenchido com `tenant_id`, e a private_key estiver mascarada,
+    # o endpoint busca a chave salva no DB (permite testar sem re-subir).
+    tenant_id: str | None = None
+
+
+class TestConnectionResponse(BaseModel):
+    ok: bool
+    detail: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class TenantDetail(BaseModel):
@@ -70,38 +103,60 @@ def _client_meta(request: Request) -> tuple[str | None, str | None]:
 
 def _config_for_response(config_json: dict[str, Any]) -> TenantConfig:
     """
-    Aceita o config_json bruto do DB e devolve um TenantConfig com a chave
-    OpenAI MASCARADA — nunca devolver `api_key` real para o frontend.
-    O DB continua tendo a chave em texto.
+    Aceita o config_json bruto do DB e devolve um TenantConfig com:
+      - chave OpenAI mascarada
+      - private_key do service account Google mascarada
+    O DB continua tendo os valores em texto.
     """
     cfg = TenantConfig(**config_json)
     if cfg.openai.api_key:
         cfg.openai.api_key = mascarar_openai_key(cfg.openai.api_key)
+    if cfg.cobrancas and cfg.cobrancas.gcp_credentials_json:
+        cfg.cobrancas.gcp_credentials_json = mascarar_gcp_credentials(
+            cfg.cobrancas.gcp_credentials_json
+        )
     return cfg
 
 
-async def _merge_openai_key_se_omissa(
+async def _merge_secrets_omissos(
     tenant_id: str,
     payload: TenantConfig,
 ) -> None:
     """
-    Se o PUT vem com `openai.mode='custom'` mas `api_key` vazia OU mascarada,
-    preserva a chave salva no DB. Permite o frontend submeter o form de edit
-    sem precisar reinformar a chave a cada save.
-    """
-    incoming = payload.openai.api_key
-    if payload.openai.mode != "custom":
-        return
-    if incoming and not _parece_mascarada(incoming):
-        return  # Chave nova válida fornecida — usar como veio.
+    Se o PUT vem com secrets vazios ou mascarados (frontend não tocou),
+    preserva os valores salvos no DB. Vale para:
+      - openai.api_key (modo 'custom')
+      - cobrancas.gcp_credentials_json (private_key mascarada)
 
+    Sem isso, o super admin teria que re-subir a chave OpenAI e o JSON
+    Google a cada save de outro campo qualquer.
+    """
+    saved_cfg = await _carregar_config_atual(tenant_id)
+    if saved_cfg is None:
+        return
+
+    # OpenAI ----------------------------------------------------------------
+    if payload.openai.mode == "custom":
+        incoming = payload.openai.api_key
+        if (not incoming or _parece_mascarada(incoming)) and saved_cfg.openai.api_key:
+            payload.openai.api_key = saved_cfg.openai.api_key
+
+    # Cobranças -------------------------------------------------------------
+    if payload.cobrancas and payload.cobrancas.gcp_credentials_json:
+        creds = payload.cobrancas.gcp_credentials_json
+        pk = creds.get("private_key", "")
+        if isinstance(pk, str) and "***" in pk and saved_cfg.cobrancas:
+            saved_creds = saved_cfg.cobrancas.gcp_credentials_json
+            if saved_creds and saved_creds.get("private_key"):
+                payload.cobrancas.gcp_credentials_json = saved_creds
+
+
+async def _carregar_config_atual(tenant_id: str) -> TenantConfig | None:
     async with superadmin_session() as session:
         existing = await admin_service.buscar_tenant(session, tenant_id)
     if not existing or not existing.get("config_json"):
-        return
-    saved = TenantConfig(**existing["config_json"])
-    if saved.openai.api_key:
-        payload.openai.api_key = saved.openai.api_key
+        return None
+    return TenantConfig(**existing["config_json"])
 
 
 def _parece_mascarada(key: str) -> bool:
@@ -111,6 +166,47 @@ def _parece_mascarada(key: str) -> bool:
 # =============================================================================
 # Endpoints
 # =============================================================================
+@router.get("/modulos", response_model=list[ModuloDisponivel])
+async def listar_modulos(
+    user: Annotated[CurrentUser, Depends(superadmin_required)],
+) -> list[ModuloDisponivel]:
+    """Catálogo de módulos disponíveis para contratação por tenant."""
+    return [
+        ModuloDisponivel(slug=m.slug, label=m.label, descricao=m.descricao)
+        for m in MODULOS_DISPONIVEIS.values()
+    ]
+
+
+@router.post("/cobrancas/test-connection", response_model=TestConnectionResponse)
+async def cobrancas_test_connection(
+    payload: CobrancasTestConnectionRequest,
+    user: Annotated[CurrentUser, Depends(superadmin_required)],
+) -> TestConnectionResponse:
+    """
+    Testa as credenciais Google Document AI fornecidas chamando get_processor.
+    Retorna status + metadata do processor (ou mensagem de erro amigável).
+
+    Se `private_key` chega mascarada (admin testando sem re-upload), tenta
+    completar com a chave salva no DB do tenant indicado.
+    """
+    creds = payload.gcp_credentials_json
+    pk = creds.get("private_key", "") if isinstance(creds, dict) else ""
+    if isinstance(pk, str) and "***" in pk and payload.tenant_id:
+        saved = await _carregar_config_atual(payload.tenant_id)
+        if saved and saved.cobrancas and saved.cobrancas.gcp_credentials_json:
+            saved_creds = saved.cobrancas.gcp_credentials_json
+            if saved_creds.get("private_key"):
+                creds = {**creds, "private_key": saved_creds["private_key"]}
+
+    result = testar_conexao_documentai(
+        gcp_credentials_json=creds,
+        gcp_project_id=payload.gcp_project_id,
+        gcp_location=payload.gcp_location,
+        processor_id=payload.processor_id,
+    )
+    return TestConnectionResponse(**result)
+
+
 @router.get("/tenants", response_model=list[TenantSummary])
 async def listar(
     user: Annotated[CurrentUser, Depends(superadmin_required)],
@@ -120,7 +216,9 @@ async def listar(
     out: list[TenantSummary] = []
     for r in rows:
         cfg = r.get("config_json") or {}
-        ds_type = (cfg.get("datasource") or {}).get("type") if isinstance(cfg, dict) else None
+        is_dict = isinstance(cfg, dict)
+        ds_type = (cfg.get("datasource") or {}).get("type") if is_dict else None
+        modulos = cfg.get("modulos_contratados") if is_dict else None
         out.append(
             TenantSummary(
                 id=r["id"],
@@ -132,6 +230,7 @@ async def listar(
                 qtde_embeddings=r["qtde_embeddings"],
                 qtde_users=r["qtde_users"],
                 datasource_type=ds_type,
+                modulos_contratados=modulos if isinstance(modulos, dict) else {},
             )
         )
     return out
@@ -201,9 +300,9 @@ async def atualizar(
     user: Annotated[CurrentUser, Depends(superadmin_required)],
 ) -> TenantDetail:
     ip, ua = _client_meta(request)
-    # Se o PUT vem sem chave OpenAI nova (frontend não tocou no campo),
-    # reaproveita a chave já salva no DB para não exigir re-input a cada save.
-    await _merge_openai_key_se_omissa(tenant_id, payload)
+    # Se o PUT vem sem secrets novos (frontend não tocou nos campos),
+    # reaproveita os valores já salvos no DB pra não exigir re-input a cada save.
+    await _merge_secrets_omissos(tenant_id, payload)
 
     async with superadmin_session() as session:
         try:

@@ -24,6 +24,10 @@
     "type": "postgres_pgvector"
   },
 
+  "modulos_contratados": {
+    "chat": true
+  },
+
   "theme": {
     "primary": "#CB1D40",
     "primary_foreground": "#FFFFFF",

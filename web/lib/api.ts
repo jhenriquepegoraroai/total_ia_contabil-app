@@ -23,9 +23,13 @@ import type {
   ChatResponse,
   ChatSessionDetail,
   ChatSessionSummary,
+  CobrancaJob,
+  CobrancaJobResult,
+  CreateTenantUserPayload,
   CreateUserPayload,
   HealthResponse,
   IngestionJob,
+  ModuloInfo,
   SourceConfigPayload,
   SourceDetail,
   SourceFile,
@@ -37,6 +41,7 @@ import type {
   TenantUser,
   TestConnectionResult,
   TokenResponse,
+  UpdateTenantUserPayload,
   UpdateUserPayload,
 } from "./types";
 
@@ -155,6 +160,23 @@ export async function health(): Promise<HealthResponse> {
 // ===========================================================================
 // Admin — tenants
 // ===========================================================================
+export async function adminListarModulos(): Promise<ModuloInfo[]> {
+  return request<ModuloInfo[]>("/admin/modulos");
+}
+
+export async function adminTestarCobrancas(payload: {
+  gcp_credentials_json: Record<string, unknown>;
+  gcp_project_id: string;
+  gcp_location: string;
+  processor_id: string;
+  tenant_id?: string;
+}): Promise<TestConnectionResult> {
+  return request<TestConnectionResult>("/admin/cobrancas/test-connection", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function adminListarTenants(): Promise<TenantSummary[]> {
   return request<TenantSummary[]>("/admin/tenants");
 }
@@ -588,7 +610,6 @@ export async function atasExportarHtml(
   URL.revokeObjectURL(url);
 }
 
-
 /**
  * Faz upload direto pro Azure Blob via SAS URL (sem passar pelo backend).
  * Frontend chama atasUploadAudioUrl primeiro pra obter a URL, depois esta
@@ -609,6 +630,116 @@ export async function uploadDiretoAzure(
   if (!resp.ok) {
     throw new ApiError(resp.status, `Upload pro Azure falhou: ${resp.statusText}`);
   }
+}
+
+
+// ===========================================================================
+// Bella Cobranças
+// ===========================================================================
+export async function cobrancasUploadPdf(file: File): Promise<CobrancaJob> {
+  const fd = new FormData();
+  fd.append("file", file);
+  // multipart: NÃO setamos Content-Type (browser monta o boundary).
+  const resp = await fetch(`${API_BASE}/cobrancas/extract`, {
+    method: "POST",
+    body: fd,
+    credentials: "same-origin",
+  });
+  if (resp.status === 401) {
+    limparSessao();
+    throw new ApiError(401, "Sessão expirada. Faça login novamente.");
+  }
+  if (!resp.ok) {
+    const raw = await resp.text();
+    let body: unknown = raw;
+    try {
+      body = JSON.parse(raw);
+    } catch {
+      /* mantém raw */
+    }
+    const detail =
+      typeof body === "object" && body && "detail" in body
+        ? String((body as { detail: unknown }).detail)
+        : raw || `${resp.status} ${resp.statusText}`;
+    throw new ApiError(resp.status, detail, body);
+  }
+  return (await resp.json()) as CobrancaJob;
+}
+
+export async function cobrancasListarJobs(): Promise<CobrancaJob[]> {
+  return request<CobrancaJob[]>("/cobrancas/jobs");
+}
+
+export async function cobrancasBuscarJob(jobId: string): Promise<CobrancaJob> {
+  return request<CobrancaJob>(`/cobrancas/jobs/${encodeURIComponent(jobId)}`);
+}
+
+export async function cobrancasResultado(jobId: string): Promise<CobrancaJobResult> {
+  return request<CobrancaJobResult>(`/cobrancas/jobs/${encodeURIComponent(jobId)}/result`);
+}
+
+export async function cobrancasDeletarJob(jobId: string): Promise<void> {
+  await request<void>(`/cobrancas/jobs/${encodeURIComponent(jobId)}`, {
+    method: "DELETE",
+  });
+}
+
+export async function cobrancasBaixarExcel(jobId: string, fileNameBase: string): Promise<void> {
+  const resp = await fetch(
+    `${API_BASE}/cobrancas/jobs/${encodeURIComponent(jobId)}/excel`,
+    { credentials: "same-origin" }
+  );
+  if (resp.status === 401) {
+    limparSessao();
+    throw new ApiError(401, "Sessão expirada. Faça login novamente.");
+  }
+  if (!resp.ok) {
+    throw new ApiError(resp.status, `${resp.status} ${resp.statusText}`);
+  }
+  const blob = await resp.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${fileNameBase}.xlsx`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+
+// ===========================================================================
+// Tenant-users — gerenciados pelo admin do PRÓPRIO tenant (não superadmin)
+// ===========================================================================
+export async function tenantListarUsuarios(): Promise<TenantUser[]> {
+  return request<TenantUser[]>("/tenant-users");
+}
+
+export async function tenantCriarUsuario(
+  payload: CreateTenantUserPayload
+): Promise<TenantUser> {
+  return request<TenantUser>("/tenant-users", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function tenantAtualizarUsuario(
+  userId: string,
+  payload: UpdateTenantUserPayload
+): Promise<TenantUser> {
+  return request<TenantUser>(`/tenant-users/${encodeURIComponent(userId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function tenantResetarSenha(
+  userId: string,
+  newPassword: string
+): Promise<void> {
+  return request<void>(`/tenant-users/${encodeURIComponent(userId)}/password`, {
+    method: "PATCH",
+    body: JSON.stringify({ new_password: newPassword }),
+  });
 }
 
 export { ApiError };

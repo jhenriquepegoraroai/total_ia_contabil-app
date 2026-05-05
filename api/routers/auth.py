@@ -52,12 +52,13 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
     tenant_id: str
     user_id: str
+    role: str = "morador"
     is_superadmin: bool = False
     referencia: str | None = None  # condomínio default do usuário, se houver
-    role: str = "morador"
     # Mapa slug → ativo dos módulos contratados pelo tenant. Frontend usa pra
-    # gatear menu lateral (mostrar "Bella Atas" só se atas=true, etc.). Vazio
-    # quando o tenant não tem nenhum módulo contratado ainda (caso _system).
+    # gatear menu lateral (mostrar "Bella Atas", "Bella Cobranças" etc só se
+    # estiverem habilitados). Vazio quando o tenant não tem nenhum módulo
+    # contratado (caso _system / superadmin).
     modulos_contratados: dict[str, bool] = {}
 
 
@@ -135,25 +136,14 @@ async def login(
         f"superadmin={row.is_superadmin}"
     )
 
-    # Resolve modulos_contratados via registry (tenant_config). Superadmin
-    # roda em `_system` que tem dict vazio — vai pra /admin de qualquer jeito.
-    modulos: dict[str, bool] = {}
-    try:
-        registry = request.app.state.tenant_registry
-        cfg = registry.get(row.tenant_id, only_enabled=False)
-        modulos = dict(cfg.modulos_contratados or {})
-    except Exception:  # noqa: BLE001
-        # Tenant pode não estar carregado no registry (ex: criado depois do
-        # boot ou config inválida). Front trata como sem módulos.
-        modulos = {}
-
+    modulos = _modulos_do_tenant(request, row.tenant_id)
     return TokenResponse(
         access_token=token,
         tenant_id=row.tenant_id,
         user_id=str(row.id),
+        role=row.role,
         is_superadmin=row.is_superadmin,
         referencia=row.referencia,
-        role=row.role,
         modulos_contratados=modulos,
     )
 
@@ -191,17 +181,19 @@ async def dev_token(
     )
     _set_auth_cookie(response, token)
 
-    modulos: dict[str, bool] = {}
-    try:
-        cfg = registry.get(payload.tenant_id, only_enabled=False)
-        modulos = dict(cfg.modulos_contratados or {})
-    except Exception:  # noqa: BLE001
-        modulos = {}
-
     return TokenResponse(
         access_token=token,
         tenant_id=payload.tenant_id,
         user_id=payload.user_id,
         role=payload.role,
-        modulos_contratados=modulos,
+        modulos_contratados=_modulos_do_tenant(request, payload.tenant_id),
     )
+
+
+def _modulos_do_tenant(request: Request, tenant_id: str) -> dict[str, bool]:
+    """Lookup defensivo do registry — retorna {} se tenant não está em cache (ex: _system)."""
+    try:
+        cfg = request.app.state.tenant_registry.get(tenant_id, only_enabled=False)
+    except (ValueError, AttributeError):
+        return {}
+    return dict(cfg.modulos_contratados or {})

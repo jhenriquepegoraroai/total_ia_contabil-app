@@ -19,6 +19,12 @@ aioboto3==13.4.0           # AWS S3 (storage + connector)
 azure-storage-blob==12.24.0  # Azure Blob (storage + connector)
 openpyxl==3.1.5            # Excel/xlsx parser para connectors de planilha
 
+# Bella Cobranças — Google Document AI (Fase 4)
+google-cloud-documentai==2.32.0
+google-cloud-storage==2.18.2
+google-auth==2.36.0
+pymupdf==1.24.14            # PyMuPDF/fitz — leitura/contagem de páginas de PDF
+
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 bcrypt==4.0.1

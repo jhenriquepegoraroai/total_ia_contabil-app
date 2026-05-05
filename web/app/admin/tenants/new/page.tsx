@@ -10,8 +10,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiError, adminCriarTenant } from "@/lib/api";
-import type { TenantConfig, TenantOpenAIConfig } from "@/lib/types";
+import type {
+  TenantCobrancasConfig,
+  TenantConfig,
+  TenantOpenAIConfig,
+} from "@/lib/types";
 import { OpenAIKeyCard } from "@/components/admin/openai-key-card";
+import { ModulosContratadosCard } from "@/components/admin/modulos-checkboxes-card";
+import { CobrancasCard } from "@/components/admin/cobrancas-card";
 
 const PROMPT_PRINCIPAL_PADRAO =
   "Você é o assistente virtual desta administradora. Responda à pergunta do usuário com base EXCLUSIVAMENTE no contexto fornecido (parágrafos extraídos de documentos do condomínio). Tom: amigável, profissional, claro. Cite as fontes (nome do arquivo e data) ao final. Se a informação não estiver no contexto, responda exatamente: 'Não encontrei essa informação nos documentos do seu condomínio.'";
@@ -45,6 +51,12 @@ export default function NewTenantPage() {
     api_key: null,
     secret_name: null,
   });
+  // Default razoável: novo tenant entra com Bella Chat marcado.
+  // O super admin desmarca se não foi contratado.
+  const [modulosContratados, setModulosContratados] = useState<Record<string, boolean>>({
+    chat: true,
+  });
+  const [cobrancas, setCobrancas] = useState<TenantCobrancasConfig | null>(null);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -99,6 +111,8 @@ export default function NewTenantPage() {
         "Não encontramos documentos cadastrados para esse condomínio. Entre em contato com a administradora.",
       mensagem_nao_encontrada:
         "Não encontrei essa informação nos documentos do seu condomínio.",
+      modulos_contratados: modulosContratados,
+      cobrancas: modulosContratados.cobrancas ? cobrancas : null,
     };
 
     try {
@@ -247,6 +261,15 @@ export default function NewTenantPage() {
             <ColorField label="Accent" value={accent} onChange={setAccent} />
           </CardContent>
         </Card>
+
+        <ModulosContratadosCard
+          value={modulosContratados}
+          onChange={setModulosContratados}
+        />
+
+        {modulosContratados.cobrancas && (
+          <CobrancasCard value={cobrancas} onChange={setCobrancas} />
+        )}
 
         <OpenAIKeyCard value={openai} onChange={setOpenai} />
 

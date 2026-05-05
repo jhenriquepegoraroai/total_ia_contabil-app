@@ -3,12 +3,14 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { AppShell } from "@/components/layout/app-shell";
 import { ChatInput } from "@/components/chat/chat-input";
 import { MessageList } from "@/components/chat/message-list";
+import { AppShell } from "@/components/layout/app-shell";
 import { ApiError, chat } from "@/lib/api";
 import { lerSessao } from "@/lib/auth";
 import type { Message } from "@/lib/types";
+
+type Sessao = NonNullable<ReturnType<typeof lerSessao>>;
 
 export default function ChatPage() {
   const router = useRouter();
@@ -16,13 +18,7 @@ export default function ChatPage() {
   const [pergunta, setPergunta] = useState("");
   const [referencia, setReferencia] = useState("");
   const [enviando, setEnviando] = useState(false);
-  const [sessaoCheck, setSessaoCheck] = useState<{
-    tenant_id: string;
-    user_id: string;
-    referencia: string | null;
-    role: string;
-    modulos_contratados: Record<string, boolean>;
-  } | null>(null);
+  const [sessao, setSessao] = useState<Sessao | null>(null);
   const [sessionId, setSessionId] = useState<string | undefined>(undefined);
 
   useEffect(() => {
@@ -37,13 +33,7 @@ export default function ChatPage() {
       router.replace("/admin");
       return;
     }
-    setSessaoCheck({
-      tenant_id: s.tenant_id,
-      user_id: s.user_id,
-      referencia: s.referencia,
-      role: s.role,
-      modulos_contratados: s.modulos_contratados,
-    });
+    setSessao(s);
     // Se o cadastro do usuário já tem condomínio, pré-preenche o campo.
     if (s.referencia) {
       setReferencia(s.referencia);
@@ -113,15 +103,15 @@ export default function ChatPage() {
     }
   }
 
-  if (!sessaoCheck) {
+  if (!sessao) {
     return null; // aguardando redirect ou hidratação
   }
 
   return (
     <AppShell
-      tenantId={sessaoCheck.tenant_id}
-      role={sessaoCheck.role}
-      modulos={sessaoCheck.modulos_contratados}
+      tenantId={sessao.tenant_id}
+      role={sessao.role}
+      modulos={sessao.modulos_contratados}
     >
       <div className="flex-1 flex flex-col max-w-5xl w-full mx-auto">
         <MessageList messages={messages} />
@@ -135,7 +125,7 @@ export default function ChatPage() {
           setReferencia={setReferencia}
           enviando={enviando}
           onSubmit={enviar}
-          referenciaTrancada={!!sessaoCheck.referencia}
+          referenciaTrancada={!!sessao.referencia}
         />
       </div>
     </AppShell>
