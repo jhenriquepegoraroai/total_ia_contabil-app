@@ -1,16 +1,16 @@
 "use client";
 
-import { LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { Button } from "@/components/ui/button";
 import { ChatInput } from "@/components/chat/chat-input";
 import { MessageList } from "@/components/chat/message-list";
-import { LelloLogo } from "@/components/lello-logo";
-import { ApiError, chat, logout as logoutApi } from "@/lib/api";
+import { AppShell } from "@/components/layout/app-shell";
+import { ApiError, chat } from "@/lib/api";
 import { lerSessao } from "@/lib/auth";
 import type { Message } from "@/lib/types";
+
+type Sessao = NonNullable<ReturnType<typeof lerSessao>>;
 
 export default function ChatPage() {
   const router = useRouter();
@@ -18,11 +18,7 @@ export default function ChatPage() {
   const [pergunta, setPergunta] = useState("");
   const [referencia, setReferencia] = useState("");
   const [enviando, setEnviando] = useState(false);
-  const [sessaoCheck, setSessaoCheck] = useState<{
-    tenant_id: string;
-    user_id: string;
-    referencia: string | null;
-  } | null>(null);
+  const [sessao, setSessao] = useState<Sessao | null>(null);
   const [sessionId, setSessionId] = useState<string | undefined>(undefined);
 
   useEffect(() => {
@@ -37,11 +33,7 @@ export default function ChatPage() {
       router.replace("/admin");
       return;
     }
-    setSessaoCheck({
-      tenant_id: s.tenant_id,
-      user_id: s.user_id,
-      referencia: s.referencia,
-    });
+    setSessao(s);
     // Se o cadastro do usuário já tem condomínio, pré-preenche o campo.
     if (s.referencia) {
       setReferencia(s.referencia);
@@ -111,32 +103,16 @@ export default function ChatPage() {
     }
   }
 
-  async function logout() {
-    await logoutApi();
-    router.replace("/login");
-  }
-
-  if (!sessaoCheck) {
+  if (!sessao) {
     return null; // aguardando redirect ou hidratação
   }
 
   return (
-    <main className="min-h-screen flex flex-col bg-background">
-      <header className="border-b bg-card/50 backdrop-blur supports-[backdrop-filter]:bg-card/50 sticky top-0 z-10">
-        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
-          <LelloLogo className="h-7" />
-          <div className="flex items-center gap-3 text-sm">
-            <div className="text-right hidden sm:block">
-              <div className="text-xs text-muted-foreground">Administradora</div>
-              <div className="font-medium">{sessaoCheck.tenant_id}</div>
-            </div>
-            <Button variant="ghost" size="icon" onClick={logout} title="Sair">
-              <LogOut />
-            </Button>
-          </div>
-        </div>
-      </header>
-
+    <AppShell
+      tenantId={sessao.tenant_id}
+      role={sessao.role}
+      modulos={sessao.modulos_contratados}
+    >
       <div className="flex-1 flex flex-col max-w-5xl w-full mx-auto">
         <MessageList messages={messages} />
       </div>
@@ -149,9 +125,9 @@ export default function ChatPage() {
           setReferencia={setReferencia}
           enviando={enviando}
           onSubmit={enviar}
-          referenciaTrancada={!!sessaoCheck.referencia}
+          referenciaTrancada={!!sessao.referencia}
         />
       </div>
-    </main>
+    </AppShell>
   );
 }

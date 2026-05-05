@@ -52,8 +52,12 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
     tenant_id: str
     user_id: str
+    role: str = "morador"
     is_superadmin: bool = False
     referencia: str | None = None  # condomínio default do usuário, se houver
+    # Módulos contratados pelo tenant (slug → ativo). Frontend usa pra
+    # decidir quais itens da sidebar aparecem. Vazio para superadmin.
+    modulos_contratados: dict[str, bool] = {}
 
 
 class LoginRequest(BaseModel):
@@ -129,12 +133,15 @@ async def login(
         f"Login OK email={payload.email} tenant={row.tenant_id} "
         f"superadmin={row.is_superadmin}"
     )
+    modulos = _modulos_do_tenant(request, row.tenant_id)
     return TokenResponse(
         access_token=token,
         tenant_id=row.tenant_id,
         user_id=str(row.id),
+        role=row.role,
         is_superadmin=row.is_superadmin,
         referencia=row.referencia,
+        modulos_contratados=modulos,
     )
 
 
@@ -174,4 +181,15 @@ async def dev_token(
         access_token=token,
         tenant_id=payload.tenant_id,
         user_id=payload.user_id,
+        role=payload.role,
+        modulos_contratados=_modulos_do_tenant(request, payload.tenant_id),
     )
+
+
+def _modulos_do_tenant(request: Request, tenant_id: str) -> dict[str, bool]:
+    """Lookup defensivo do registry — retorna {} se tenant não está em cache (ex: _system)."""
+    try:
+        cfg = request.app.state.tenant_registry.get(tenant_id, only_enabled=False)
+    except (ValueError, AttributeError):
+        return {}
+    return dict(cfg.modulos_contratados or {})

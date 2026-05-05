@@ -135,3 +135,26 @@ async def superadmin_required(
             detail="Acesso restrito a superadmin.",
         )
     return user
+
+
+async def tenant_admin_required(
+    user: Annotated[CurrentUser, Depends(usuario_atual)],
+) -> CurrentUser:
+    """
+    Guard para rotas em que só o admin do próprio tenant pode operar
+    (ex: `/tenant-users/*`). Aceita também superadmin (suporte/debug).
+    Rejeita tenant `_system` reservado.
+    """
+    if user.is_superadmin:
+        return user
+    if user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso restrito ao admin do tenant.",
+        )
+    if user.tenant_id == "_system":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Tenant '_system' é reservado.",
+        )
+    return user
