@@ -23,8 +23,6 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from api.tenants.modulos import MODULO_SLUGS
 
-from api.tenants.modulos import MODULO_SLUGS
-
 
 # =============================================================================
 # Datasource — Adapter Pattern
