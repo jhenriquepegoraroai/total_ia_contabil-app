@@ -30,6 +30,7 @@ from api.routers import cobrancas as cobrancas_router
 from api.routers import health as health_router
 from api.routers import tenant_public as tenant_public_router
 from api.routers import tenant_users as tenant_users_router
+from api.routers import public_catalog as public_catalog_router
 from api.tenants.registry import TenantRegistry
 from api.utils.logging import configurar_logging
 
@@ -79,3 +80,4 @@ app.include_router(atas_router.router)
 app.include_router(cobrancas_router.router)
 app.include_router(tenant_public_router.router)
 app.include_router(tenant_users_router.router)
+app.include_router(public_catalog_router.router)

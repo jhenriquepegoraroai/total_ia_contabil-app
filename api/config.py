@@ -7,7 +7,17 @@ de seguir com valor de dev "só pra funcionar".
 """
 
 import os
+from pathlib import Path
 from typing import Final
+
+# Carrega .env da raiz do projeto (dois níveis acima de api/config.py).
+# Em produção as variáveis vêm do ambiente diretamente — load_dotenv é no-op.
+try:
+    from dotenv import load_dotenv
+    _env_path = Path(__file__).resolve().parent.parent / ".env"
+    load_dotenv(_env_path, override=False)
+except ImportError:
+    pass  # python-dotenv não instalado — ambiente deve ter as vars direto
 
 
 class ConfigError(RuntimeError):

@@ -2,6 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
+html {
+  scroll-behavior: smooth;
+}
+
 /* ===========================================================================
  * Paleta Lello — calibrada visualmente do site oficial
  * Valores em HSL (formato Tailwind/shadcn).
