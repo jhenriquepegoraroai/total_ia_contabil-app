@@ -8,6 +8,7 @@
 
 import Link from "next/link";
 
+import { Calculadora } from "@/components/landing/Calculadora";
 import { ModuloCard } from "@/components/landing/ModuloCard";
 
 /* -------------------------------------------------------------------------- */
@@ -182,6 +183,9 @@ export default async function LandingPage() {
             <a href="#produtos" className="hover:text-foreground transition-colors">
               Produtos
             </a>
+            <a href="#calculadora" className="hover:text-foreground transition-colors">
+              ROI
+            </a>
             <a href="#modalidades" className="hover:text-foreground transition-colors">
               Modalidades
             </a>
@@ -261,6 +265,23 @@ export default async function LandingPage() {
               <ModuloCard key={m.slug} {...m} />
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* CALCULADORA DE ROI                                                   */}
+      {/* ------------------------------------------------------------------ */}
+      <section id="calculadora" className="bg-muted py-20 sm:py-28">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-14">
+            <h2 className="text-3xl sm:text-4xl font-extrabold">
+              Quanto vale para a sua operação?
+            </h2>
+            <p className="mt-3 text-lg text-muted-foreground max-w-xl mx-auto">
+              Ajuste os parâmetros da sua carteira e veja a projeção de retorno em tempo real.
+            </p>
+          </div>
+          <Calculadora />
         </div>
       </section>
 
