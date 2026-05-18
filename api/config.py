@@ -129,3 +129,17 @@ SMTP_USE_TLS: Final[bool] = _optional("SMTP_USE_TLS", "true").lower() == "true"
 # Base pública da web — usada nos links dentro dos e-mails.
 # DEV: http://localhost:3000 ; PROD: https://app.bella-saas.com (ou similar).
 WEB_URL_BASE: Final[str] = _optional("WEB_URL_BASE", "http://localhost:3000")
+
+# -----------------------------------------------------------------------------
+# Anthropic (Claude)
+# -----------------------------------------------------------------------------
+# Usado pelo QAService da branch recalibração e por futuros agentes.
+# Opcional agora — necessário quando o Bloco 6 do demo for ativado.
+ANTHROPIC_API_KEY: Final[str] = _optional("ANTHROPIC_API_KEY", "")
+
+# -----------------------------------------------------------------------------
+# Demo mode
+# -----------------------------------------------------------------------------
+# Quando true, ativa fallback de autenticação sem login real (X-User-Id header).
+# Mantido false em produção. O Bloco 6 do demo ativa via .env.
+DEMO_MODE: Final[bool] = _optional("DEMO_MODE", "false").lower() == "true"

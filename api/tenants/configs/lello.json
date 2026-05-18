@@ -1,22 +1,22 @@
 {
   "schema_version": "2.0",
   "tenant_id": "lello",
-  "nome_empresa": "Administradora Exemplo",
+  "nome_empresa": "Lello Condomínios",
   "nome_assistente": "Bella",
   "enabled": true,
 
   "contatos": {
-    "telefone": "(XX) XXXX-XXXX",
-    "whatsapp": "(XX) XXXXX-XXXX",
-    "whatsapp_link": "https://wa.me/55XXXXXXXXXX",
-    "email": "atendimento@exemplo.com.br",
+    "telefone": "REVISAR_COM_HENRIQUE",
+    "whatsapp": "REVISAR_COM_HENRIQUE",
+    "whatsapp_link": "REVISAR_COM_HENRIQUE",
+    "email": "REVISAR_COM_HENRIQUE",
     "horario_atendimento": "Segunda a Sexta, das 8h30 às 19h."
   },
 
   "urls": {
-    "app_moradores": "https://app.exemplo.com.br",
-    "portal_resolva_facil": "https://portal.exemplo.com.br/resolva-facil",
-    "prestacao_contas": "https://portal.exemplo.com.br/prestacao-de-contas",
+    "app_moradores": "REVISAR_COM_HENRIQUE",
+    "portal_resolva_facil": "REVISAR_COM_HENRIQUE",
+    "prestacao_contas": "REVISAR_COM_HENRIQUE",
     "cadastro_inquilino": null
   },
 
@@ -24,8 +24,12 @@
     "type": "postgres_pgvector"
   },
 
+  "modalidade": "A",
+
   "modulos_contratados": {
-    "chat": true
+    "chat": true,
+    "atas": true,
+    "cobrancas": true
   },
 
   "theme": {
@@ -66,8 +70,8 @@
 
   "respostas_padrao": {},
 
-  "resposta_sem_documento": "Não encontramos documentos cadastrados para o seu condomínio na Lello. Entre em contato com a Lello pelo WhatsApp da administradora para verificar.",
-  "mensagem_nao_encontrada": "Não encontrei essa informação nos documentos do seu condomínio. Recomendo entrar em contato com a Lello pelo WhatsApp (XX) XXXXX-XXXX ou pelo e-mail atendimento@exemplo.com.br.",
+  "resposta_sem_documento": "Não encontramos documentos cadastrados para o seu condomínio na Lello. Entre em contato com a Lello para verificar.",
+  "mensagem_nao_encontrada": "Não encontrei essa informação nos documentos do seu condomínio. Recomendo entrar em contato com a Lello pelo WhatsApp ou e-mail da administradora.",
 
   "regra_concorrentes": "",
   "leis_referencia": ""

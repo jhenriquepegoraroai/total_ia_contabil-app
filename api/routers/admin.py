@@ -41,6 +41,7 @@ class TenantSummary(BaseModel):
     qtde_users: int
     datasource_type: str | None = None
     modulos_contratados: dict[str, bool] = Field(default_factory=dict)
+    modalidade: str = "B"
 
 
 class ModuloDisponivel(BaseModel):
@@ -49,6 +50,11 @@ class ModuloDisponivel(BaseModel):
     slug: str
     label: str
     descricao: str
+    nome_produto: str = ""
+    tagline: str = ""
+    icone: str = "bot"
+    status: str = "disponivel"
+    modalidades: list[str] = []
 
 
 class CobrancasTestConnectionRequest(BaseModel):
@@ -172,7 +178,16 @@ async def listar_modulos(
 ) -> list[ModuloDisponivel]:
     """Catálogo de módulos disponíveis para contratação por tenant."""
     return [
-        ModuloDisponivel(slug=m.slug, label=m.label, descricao=m.descricao)
+        ModuloDisponivel(
+            slug=m.slug,
+            label=m.label,
+            descricao=m.descricao,
+            nome_produto=m.nome_produto,
+            tagline=m.tagline,
+            icone=m.icone,
+            status=m.status,
+            modalidades=m.modalidades,
+        )
         for m in MODULOS_DISPONIVEIS.values()
     ]
 
@@ -219,6 +234,7 @@ async def listar(
         is_dict = isinstance(cfg, dict)
         ds_type = (cfg.get("datasource") or {}).get("type") if is_dict else None
         modulos = cfg.get("modulos_contratados") if is_dict else None
+        modalidade = cfg.get("modalidade", "B") if is_dict else "B"
         out.append(
             TenantSummary(
                 id=r["id"],
@@ -231,6 +247,7 @@ async def listar(
                 qtde_users=r["qtde_users"],
                 datasource_type=ds_type,
                 modulos_contratados=modulos if isinstance(modulos, dict) else {},
+                modalidade=modalidade,
             )
         )
     return out

@@ -14,6 +14,7 @@ REGRA CRÍTICA (RULES.md #1, #2): nunca abrir uma sessão sem setar o tenant —
 exceto para superadmin que SÓ pode operar via `superadmin_session`.
 """
 
+import ssl
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
@@ -28,13 +29,26 @@ from sqlalchemy.ext.asyncio import (
 from api import config
 
 
-_engine = create_async_engine(
-    config.DATABASE_URL,
-    echo=config.APP_ENV == "development" and config.LOG_LEVEL == "DEBUG",
-    pool_pre_ping=True,
-    pool_size=10,
-    max_overflow=20,
-)
+def _build_engine():
+    url = config.DATABASE_URL
+    connect_args = {}
+
+    # asyncpg não aceita sslmode=require na query string — converter para ssl context.
+    if "sslmode=require" in url:
+        url = url.replace("?sslmode=require", "").replace("&sslmode=require", "")
+        connect_args["ssl"] = ssl.create_default_context()
+
+    return create_async_engine(
+        url,
+        echo=config.APP_ENV == "development" and config.LOG_LEVEL == "DEBUG",
+        pool_pre_ping=True,
+        pool_size=10,
+        max_overflow=20,
+        connect_args=connect_args,
+    )
+
+
+_engine = _build_engine()
 
 _session_factory: async_sessionmaker[AsyncSession] = async_sessionmaker(
     _engine,

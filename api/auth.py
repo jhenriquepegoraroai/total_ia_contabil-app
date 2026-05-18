@@ -105,9 +105,26 @@ async def usuario_atual(
 ) -> CurrentUser:
     """
     Extrai o usuário do JWT, na ordem:
-      1. Header `Authorization: Bearer <token>` (curl/postman/scripts)
-      2. Cookie HttpOnly `avc_token` (browser, fluxo padrão)
+      1. Demo Mode: header X-User-Id (só quando DEMO_MODE=true no .env)
+      2. Header `Authorization: Bearer <token>` (curl/postman/scripts)
+      3. Cookie HttpOnly `avc_token` (browser, fluxo padrão)
+
+    DEMO_MODE só deve ser ativado em ambiente local de apresentação —
+    nunca em produção. Quando ativo, X-User-Id bypassa autenticação JWT
+    para permitir navegação no demo sem login real.
     """
+    # Demo Mode: bypass JWT via headers explícitos.
+    # Seguro porque DEMO_MODE=false por padrão e não entra em produção.
+    if config.DEMO_MODE:
+        demo_user_id = request.headers.get("X-User-Id")
+        if demo_user_id:
+            return CurrentUser(
+                user_id=demo_user_id,
+                tenant_id=request.headers.get("X-Tenant-Id", "lello"),
+                role=request.headers.get("X-Role", "admin"),
+                is_superadmin=request.headers.get("X-Is-Superadmin", "false").lower() == "true",
+            )
+
     if not token:
         token = request.cookies.get(AUTH_COOKIE_NAME)
     if not token:

@@ -311,6 +311,13 @@ class TenantConfig(BaseModel):
     # ou view no banco do tenant. O adapter resolve.
     schemas_estruturados: dict[str, str] = Field(default_factory=dict)
 
+    # Modalidade comercial de venda:
+    #   A = acoplada ao white-label de operação Lello (sem "powered by")
+    #   B = standalone para administradoras independentes ("powered by Bella")
+    #   C = dados de mercado para players adjacentes (acesso via API)
+    # Default B para backward compat com tenants criados antes do Bloco 3.
+    modalidade: Literal["A", "B", "C"] = "B"
+
     # Módulos contratados pelo tenant (slug → ativo). Slugs válidos vêm do
     # catálogo em `api/tenants/modulos.py`. Default vazio: a contratação é
     # explícita — o super admin marca via UI no cadastro.
