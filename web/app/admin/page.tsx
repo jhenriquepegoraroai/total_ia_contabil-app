@@ -138,11 +138,18 @@ export default function AdminTenantsPage() {
                   <Stat icon={Users} label="users" value={t.qtde_users} />
                 </div>
 
-                {t.datasource_type && (
-                  <div className="text-xs text-muted-foreground">
-                    fonte: <code>{t.datasource_type}</code>
-                  </div>
-                )}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {t.datasource_type && (
+                    <span className="text-xs text-muted-foreground">
+                      fonte: <code>{t.datasource_type}</code>
+                    </span>
+                  )}
+                  {t.modalidade && (
+                    <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                      Mod. {t.modalidade}
+                    </span>
+                  )}
+                </div>
 
                 <ModulosBadges
                   modulos={t.modulos_contratados}

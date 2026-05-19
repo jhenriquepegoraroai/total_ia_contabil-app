@@ -51,6 +51,7 @@ export interface TenantSummary {
   qtde_users: number;
   datasource_type: string | null;
   modulos_contratados?: Record<string, boolean>;
+  modalidade?: "A" | "B" | "C";
 }
 
 /** Item do catálogo de módulos contratáveis (GET /admin/modulos). */
@@ -166,6 +167,7 @@ export interface TenantConfig {
   tenant_id: string;
   nome_empresa: string;
   nome_assistente: string;
+  modalidade?: "A" | "B" | "C";
   enabled: boolean;
   contatos: TenantContatos;
   urls: TenantURLs;

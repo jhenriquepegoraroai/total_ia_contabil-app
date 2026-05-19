@@ -46,6 +46,7 @@ export default function NewTenantPage() {
   const [primary, setPrimary] = useState("#CB1D40");
   const [secondary, setSecondary] = useState("#5D0E1F");
   const [accent, setAccent] = useState("#F5B79E");
+  const [modalidade, setModalidade] = useState<"A" | "B" | "C">("B");
   const [openai, setOpenai] = useState<TenantOpenAIConfig>({
     mode: "lello",
     api_key: null,
@@ -58,6 +59,24 @@ export default function NewTenantPage() {
   });
   const [cobrancas, setCobrancas] = useState<TenantCobrancasConfig | null>(null);
 
+  // ---- Demo quick-fill ------------------------------------------------
+  function preencherJHP() {
+    setTenantId("jhp");
+    setNomeEmpresa("JHP Administradora");
+    setNomeAssistente("Bella");
+    setTelefone("(11) 91234-5678");
+    setWhatsapp("5511912345678");
+    setWhatsappLink("https://wa.me/5511912345678");
+    setEmail("contato@jhpadm.com.br");
+    setAppMoradores("http://localhost:3001");
+    setPortalResolva("http://localhost:3001");
+    setPrimary("#1E40AF");
+    setSecondary("#1E3A8A");
+    setAccent("#93C5FD");
+    setModalidade("B");
+    setModulosContratados({ chat: true });
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setErro(null);
@@ -68,6 +87,7 @@ export default function NewTenantPage() {
       tenant_id: tenantId.trim().toLowerCase(),
       nome_empresa: nomeEmpresa.trim(),
       nome_assistente: nomeAssistente.trim() || "Assistente Virtual",
+      modalidade,
       enabled: false,
       contatos: {
         telefone: telefone.trim(),
@@ -136,10 +156,22 @@ export default function NewTenantPage() {
         >
           <ChevronLeft className="h-3 w-3" /> Voltar
         </Link>
-        <h1 className="text-2xl font-bold mt-2">Nova administradora</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          O tenant é criado desabilitado. Configure as fontes de dados e habilite depois.
-        </p>
+        <div className="flex items-start justify-between gap-4 mt-2">
+          <div>
+            <h1 className="text-2xl font-bold">Nova administradora</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              O tenant é criado desabilitado. Configure as fontes de dados e habilite depois.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={preencherJHP}
+            className="shrink-0 inline-flex items-center gap-2 rounded-lg border-2 border-dashed border-amber-400 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-100 transition-colors"
+            title="Pré-preenche todos os campos com dados fictícios da JHP Administradora para demonstração ao vivo"
+          >
+            ⚡ Demo — Pré-preencher JHP
+          </button>
+        </div>
       </header>
 
       <form onSubmit={onSubmit} className="space-y-6 max-w-3xl">
@@ -248,6 +280,45 @@ export default function NewTenantPage() {
           </CardContent>
         </Card>
 
+        {/* ---- Modalidade ---- */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Modalidade de contratação</CardTitle>
+            <CardDescription>
+              Define como este tenant se integra à plataforma.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid sm:grid-cols-3 gap-3">
+              {(
+                [
+                  { value: "A", emoji: "🏢", titulo: "Acoplada", desc: "White-label Lello — integração nativa" },
+                  { value: "B", emoji: "🚀", titulo: "Standalone", desc: "Administradora independente — infra isolada" },
+                  { value: "C", emoji: "📊", titulo: "Dados de Mercado", desc: "Acesso à inteligência anonimizada" },
+                ] as const
+              ).map((op) => (
+                <button
+                  key={op.value}
+                  type="button"
+                  onClick={() => setModalidade(op.value)}
+                  className={`flex flex-col gap-1 rounded-lg border-2 p-4 text-left transition-colors ${
+                    modalidade === op.value
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:border-primary/40"
+                  }`}
+                >
+                  <span className="text-xl">{op.emoji}</span>
+                  <span className="font-semibold text-sm">
+                    {op.value} — {op.titulo}
+                  </span>
+                  <span className="text-xs text-muted-foreground">{op.desc}</span>
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ---- Identidade visual ---- */}
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Identidade visual</CardTitle>
@@ -255,10 +326,41 @@ export default function NewTenantPage() {
               Cores aplicadas no chat dos usuários do tenant. Substituir os defaults da Lello.
             </CardDescription>
           </CardHeader>
-          <CardContent className="grid sm:grid-cols-3 gap-4">
-            <ColorField label="Primária" value={primary} onChange={setPrimary} />
-            <ColorField label="Secundária" value={secondary} onChange={setSecondary} />
-            <ColorField label="Accent" value={accent} onChange={setAccent} />
+          <CardContent className="space-y-5">
+            <div className="grid sm:grid-cols-3 gap-4">
+              <ColorField label="Primária" value={primary} onChange={setPrimary} />
+              <ColorField label="Secundária" value={secondary} onChange={setSecondary} />
+              <ColorField label="Accent" value={accent} onChange={setAccent} />
+            </div>
+            {/* Preview em tempo real */}
+            <div className="rounded-lg border border-border overflow-hidden">
+              <div
+                className="h-10 flex items-center px-4 gap-3"
+                style={{ backgroundColor: primary }}
+              >
+                <span className="text-white text-sm font-bold">{nomeEmpresa || "Nome da empresa"}</span>
+              </div>
+              <div className="flex gap-2 p-3 bg-white">
+                <span
+                  className="rounded px-3 py-1 text-xs font-semibold text-white"
+                  style={{ backgroundColor: primary }}
+                >
+                  Botão primário
+                </span>
+                <span
+                  className="rounded px-3 py-1 text-xs font-semibold text-white"
+                  style={{ backgroundColor: secondary }}
+                >
+                  Secundário
+                </span>
+                <span
+                  className="rounded px-3 py-1 text-xs font-semibold"
+                  style={{ backgroundColor: accent, color: "#0E0E0E" }}
+                >
+                  Accent
+                </span>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
