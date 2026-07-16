@@ -65,7 +65,7 @@ export function ModuloCard({
             </span>
           ) : (
             <span className="text-xs font-medium px-2 py-1 rounded-full bg-amber-100 text-amber-800 whitespace-nowrap">
-              Preview
+              Em breve
             </span>
           )}
         </div>

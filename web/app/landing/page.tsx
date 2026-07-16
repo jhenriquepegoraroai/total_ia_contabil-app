@@ -9,6 +9,7 @@
 import Link from "next/link";
 
 import { Calculadora } from "@/components/landing/Calculadora";
+import { ModalidadePlanos } from "@/components/landing/ModalidadePlanos";
 import { ModuloCard } from "@/components/landing/ModuloCard";
 
 /* -------------------------------------------------------------------------- */
@@ -68,6 +69,36 @@ const MODULOS_FALLBACK: ModuloInfo[] = [
     icone: "trending-down",
     status: "preview",
     modalidades: ["A", "B", "C"],
+  },
+  {
+    slug: "folha",
+    nome_produto: "Agente Folha de Pagamento",
+    tagline: "Processa a folha dos funcionários do condomínio sem planilha.",
+    descricao:
+      "Automação de folha de pagamento dos funcionários do condomínio com encargos e obrigações.",
+    icone: "banknote",
+    status: "preview",
+    modalidades: ["A", "B"],
+  },
+  {
+    slug: "sindico",
+    nome_produto: "Agente do Síndico",
+    tagline: "Copiloto do síndico para a gestão do condomínio.",
+    descricao:
+      "Assistente do síndico para prazos, obrigações legais e priorização de demandas.",
+    icone: "bot",
+    status: "preview",
+    modalidades: ["A", "B"],
+  },
+  {
+    slug: "chamado",
+    nome_produto: "Agente Atendimento de Chamado",
+    tagline: "Recebe, tria e encaminha chamados dos moradores automaticamente.",
+    descricao:
+      "Atendimento e triagem automática de chamados de moradores, roteando para o responsável certo.",
+    icone: "message-circle",
+    status: "preview",
+    modalidades: ["A", "B"],
   },
 ];
 
@@ -332,6 +363,11 @@ export default async function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* ESCOLHA SUA MODALIDADE (vitrine estática — sem preço/checkout)       */}
+      {/* ------------------------------------------------------------------ */}
+      <ModalidadePlanos />
 
       {/* ------------------------------------------------------------------ */}
       {/* VISÃO ESTRATÉGICA                                                    */}

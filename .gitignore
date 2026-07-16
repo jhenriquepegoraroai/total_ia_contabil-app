@@ -48,6 +48,12 @@ instrucao/instrucao.md
 *.dump.gz
 *.bak
 
+# Exceção: migrations versionadas DEVEM ser commitadas. A regra `*.sql` acima
+# existe para dumps de banco — não para o schema versionado em db/migrations/.
+# (As migrations 001–012 foram adicionadas com `git add -f`; esta negação evita
+# que qualquer migration futura seja silenciosamente ignorada.)
+!db/migrations/*.sql
+
 # Uploads de PDF (Bella Cobranças, samples) — exceto package `api/storage/`
 *.pdf
 !api/storage/

@@ -16,6 +16,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
 from api import config
@@ -65,6 +66,22 @@ app = FastAPI(
     description="API multi-tenant de RAG sobre documentos de condomínios.",
     version="0.6.0",
     lifespan=lifespan,
+)
+
+# CORS — permite requisições do frontend Next.js em dev (localhost:3000/3001)
+# Em produção, substituir pela URL real do app.
+_CORS_ORIGINS = [
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:3001",
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_CORS_ORIGINS,
+    allow_credentials=True,  # necessário para enviar cookies httpOnly (JWT)
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Middlewares

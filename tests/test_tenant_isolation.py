@@ -175,6 +175,31 @@ async def test_busca_similaridade_retorna_apenas_dados_proprios(session_factory,
         await s.close()
 
 
+async def test_busca_carteira_isola_tenants(session_factory, seed_dois_tenants):
+    """
+    A busca de carteira (cross-condomínio) NÃO filtra por referência — depende
+    exclusivamente do filtro por tenant_id + RLS. É o caminho mais sensível:
+    tenant A varrendo "toda a carteira" jamais pode enxergar linha do tenant B.
+    """
+    s = await _open_tenant_session(session_factory, "tA")
+    try:
+        ds_a = PostgresPgvectorDataSource(tenant_id="tA", session=s)
+        # Consulta com o embedding do tenant B e threshold 0 — se houvesse leak,
+        # os chunks do B viriam no topo. Devem vir SÓ os do tenant A.
+        rows = await ds_a.busca_similaridade_carteira(
+            query_embedding=seed_dois_tenants["tB"]["embedding_query"],
+            top_k=10,
+            threshold=0.0,
+        )
+        assert len(rows) == 2, f"esperado 2 chunks do tenant A, veio {len(rows)}"
+        for r in rows:
+            assert r["referencia"] == "111", f"LEAK: referência de outro tenant: {r}"
+            assert "tenant A" in r["paragraph"], f"LEAK: chunk de outro tenant: {r}"
+    finally:
+        await s.rollback()
+        await s.close()
+
+
 async def test_dados_estruturados_isolam_tenants(session_factory, seed_dois_tenants):
     """Tenant A consultando uma referência do B deve receber zero linhas."""
     s = await _open_tenant_session(session_factory, "tA")

@@ -174,6 +174,8 @@ async def executar(
                             embedding=r.embedding,
                             data_valida=chunk.data_valida,
                             content_hash=h,
+                            embedding_model=embedding_client.model,
+                            embedding_dim=len(r.embedding),
                         )
                     )
 

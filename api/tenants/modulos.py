@@ -22,6 +22,9 @@ Portfólio do demo (maio 2026):
   atas      → Agente de Atas            — disponível
   cobrancas → Agente Financeiro         — disponível (inclui extração DocumentAI)
   churn     → Agente de Churn           — preview (stub sem backend real)
+  folha     → Agente Folha de Pagamento — preview (roadmap)
+  sindico   → Agente do Síndico         — preview (roadmap)
+  chamado   → Agente de Chamado         — preview (roadmap)
 """
 
 from __future__ import annotations
@@ -104,6 +107,45 @@ MODULOS_DISPONIVEIS: dict[str, ModuloInfo] = {
         icone="trending-down",
         status="preview",
         modalidades=["A", "B", "C"],
+    ),
+    "folha": ModuloInfo(
+        slug="folha",
+        label="Bella Folha",
+        descricao=(
+            "Automação de folha de pagamento dos funcionários do condomínio "
+            "(zelador, porteiros, limpeza) com encargos e obrigações. (Roadmap)"
+        ),
+        nome_produto="Agente Folha de Pagamento",
+        tagline="Processa a folha dos funcionários do condomínio sem planilha.",
+        icone="banknote",
+        status="preview",
+        modalidades=["A", "B"],
+    ),
+    "sindico": ModuloInfo(
+        slug="sindico",
+        label="Bella Síndico",
+        descricao=(
+            "Assistente do síndico para decisões do dia a dia: prazos, "
+            "obrigações legais, priorização de demandas e comunicação. (Roadmap)"
+        ),
+        nome_produto="Agente do Síndico",
+        tagline="Copiloto do síndico para a gestão do condomínio.",
+        icone="bot",
+        status="preview",
+        modalidades=["A", "B"],
+    ),
+    "chamado": ModuloInfo(
+        slug="chamado",
+        label="Bella Chamado",
+        descricao=(
+            "Atendimento e triagem automática de chamados de moradores, "
+            "roteando para o responsável certo. (Roadmap)"
+        ),
+        nome_produto="Agente Atendimento de Chamado",
+        tagline="Recebe, tria e encaminha chamados dos moradores automaticamente.",
+        icone="message-circle",
+        status="preview",
+        modalidades=["A", "B"],
     ),
 }
 

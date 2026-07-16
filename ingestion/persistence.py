@@ -29,6 +29,8 @@ class EmbeddingRow:
     embedding: list[float]
     data_valida: date | None
     content_hash: str
+    embedding_model: str
+    embedding_dim: int
 
 
 async def upsert_batch(session: AsyncSession, rows: list[EmbeddingRow]) -> int:
@@ -44,14 +46,17 @@ async def upsert_batch(session: AsyncSession, rows: list[EmbeddingRow]) -> int:
         """
         INSERT INTO documents_embeddings
             (tenant_id, referencia, file_name, record_id, paragraph,
-             embedding, data_valida, content_hash)
+             embedding, data_valida, content_hash, embedding_model, embedding_dim)
         VALUES
-            (:tid, :ref, :fn, :rid, :par, CAST(:emb AS vector), :dv, :hash)
+            (:tid, :ref, :fn, :rid, :par, CAST(:emb AS vector), :dv, :hash,
+             :emb_model, :emb_dim)
         ON CONFLICT (tenant_id, referencia, file_name, record_id) DO UPDATE SET
             paragraph = EXCLUDED.paragraph,
             embedding = EXCLUDED.embedding,
             data_valida = EXCLUDED.data_valida,
-            content_hash = EXCLUDED.content_hash
+            content_hash = EXCLUDED.content_hash,
+            embedding_model = EXCLUDED.embedding_model,
+            embedding_dim = EXCLUDED.embedding_dim
         """
     )
 
@@ -65,6 +70,8 @@ async def upsert_batch(session: AsyncSession, rows: list[EmbeddingRow]) -> int:
             "emb": _vector_literal(r.embedding),
             "dv": r.data_valida,
             "hash": r.content_hash,
+            "emb_model": r.embedding_model,
+            "emb_dim": r.embedding_dim,
         }
         for r in rows
     ]

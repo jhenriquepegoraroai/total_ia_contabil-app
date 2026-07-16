@@ -98,6 +98,59 @@ class PostgresPgvectorDataSource(DataSource):
         return [dict(r) for r in rows]
 
     # =========================================================================
+    # Busca por similaridade na carteira inteira (cross-condomínio)
+    # =========================================================================
+    async def busca_similaridade_carteira(
+        self,
+        query_embedding: Sequence[float],
+        top_k: int = 24,
+        threshold: float = 0.30,
+        file_pattern_include: Optional[str] = None,
+        file_pattern_exclude: Optional[str] = None,
+    ) -> list[dict[str, Any]]:
+        # Igual a `busca_similaridade`, mas SEM `AND referencia = :ref`. O filtro
+        # por tenant_id permanece (defesa em profundidade + RLS). O SELECT expõe
+        # `referencia` para o chamador agregar por condomínio.
+        sql_parts = [
+            "WITH ranked AS (",
+            "  SELECT",
+            "    referencia, record_id, file_name, paragraph, data_valida,",
+            "    1 - (embedding <=> CAST(:qe AS vector)) AS similarity",
+            "  FROM documents_embeddings",
+            "  WHERE tenant_id = :tid",
+        ]
+        params: dict[str, Any] = {
+            "qe": _vector_literal(query_embedding),
+            "tid": self.tenant_id,
+            "k": top_k,
+            "th": threshold,
+        }
+
+        if file_pattern_include:
+            sql_parts.append("    AND lower(file_name) LIKE lower(:pat_inc)")
+            params["pat_inc"] = file_pattern_include
+        if file_pattern_exclude:
+            sql_parts.append("    AND lower(file_name) NOT LIKE lower(:pat_exc)")
+            params["pat_exc"] = file_pattern_exclude
+
+        sql_parts += [
+            ")",
+            "SELECT * FROM ranked",
+            "WHERE similarity >= :th",
+            "ORDER BY similarity DESC",
+            "LIMIT :k",
+        ]
+        sql = "\n".join(sql_parts)
+
+        result = await self._session.execute(text(sql), params)
+        rows = result.mappings().all()
+        logger.debug(
+            f"[{self.tenant_id}] busca_similaridade_carteira top_k={top_k} "
+            f"threshold={threshold} → {len(rows)} chunks"
+        )
+        return [dict(r) for r in rows]
+
+    # =========================================================================
     # Parágrafos por pattern (sem embeddings)
     # =========================================================================
     async def buscar_paragrafos_por_pattern(

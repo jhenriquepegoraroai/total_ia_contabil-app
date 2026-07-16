@@ -49,6 +49,11 @@ class EmbeddingClient:
         self._max_retries = max_retries
         self._rate_limit_pause = rate_limit_pause_seconds
 
+    @property
+    def model(self) -> str:
+        """Nome do modelo OpenAI usado — persistido junto de cada embedding."""
+        return self._model
+
     async def embed_batch(self, paragraphs: list[str]) -> list[EmbeddingResult]:
         """
         Gera embeddings para um batch.

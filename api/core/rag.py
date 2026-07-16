@@ -40,7 +40,12 @@ CAT_ASSEMBLEIA = 51
 CAT_EDITAL_CONTEUDO = 65
 CAT_EDITAL_DATA = 67
 CAT_EDITAL_VS_ATA = 68
+CAT_CARTEIRA = 70  # pergunta sobre a carteira inteira (cross-condomínio)
 CAT_ESCLARECIMENTO = -1
+
+# Busca de carteira varre vários condomínios — precisa de mais chunks que a
+# busca de 1 condomínio para o modelo conseguir listar/comparar entre eles.
+CARTEIRA_TOP_K = 24
 
 
 @dataclass
@@ -164,7 +169,17 @@ async def responder(
             via="pattern",
         )
 
-    # 6. Default — busca por embeddings
+    # 6. Carteira — busca cross-condomínio (pergunta sobre a carteira inteira)
+    if categoria == CAT_CARTEIRA:
+        return await _responder_carteira(
+            categoria=categoria,
+            pergunta=pergunta,
+            tenant_config=tenant_config,
+            datasource=datasource,
+            llm=llm,
+        )
+
+    # 7. Default — busca por embeddings
     return await _responder_embeddings(
         categoria=categoria,
         pergunta=pergunta,
@@ -326,6 +341,97 @@ async def _responder_embeddings(
 
 
 # =============================================================================
+# Caminho: carteira (cross-condomínio)
+# =============================================================================
+async def _responder_carteira(
+    *,
+    categoria: int | None,
+    pergunta: str,
+    tenant_config: TenantConfig,
+    datasource: DataSource,
+    llm: LLMClient,
+) -> RAGResposta:
+    """
+    Responde perguntas sobre a carteira inteira do tenant (vários condomínios).
+
+    Busca sem filtro de referência, agrupa os chunks por condomínio (resolvendo
+    o nome quando há cadastro) e deixa o modelo listar/comparar entre eles.
+    """
+    pergunta_para_busca = pergunta
+    if tenant_config.prompt_formatacao:
+        try:
+            pergunta_para_busca = await llm.reformular_pergunta(
+                system_prompt=tenant_config.prompt_formatacao,
+                pergunta=pergunta,
+            )
+        except Exception as exc:
+            logger.warning(f"Falha reformulando pergunta (carteira), usando original: {exc}")
+
+    embedding = await llm.embed_query(pergunta_para_busca)
+
+    chunks = await datasource.busca_similaridade_carteira(
+        query_embedding=embedding,
+        top_k=CARTEIRA_TOP_K,
+        threshold=tenant_config.rag.similarity_threshold,
+        file_pattern_exclude="%edital%",  # editais têm caminho próprio (cat 65/67/68)
+    )
+
+    if not chunks:
+        return RAGResposta(
+            resposta=tenant_config.mensagem_nao_encontrada,
+            categoria=categoria,
+            via="carteira",
+        )
+
+    nomes = await _resolver_nomes_condominios(chunks, tenant_config, datasource)
+    contexto = _formatar_chunks_carteira(chunks, nomes)
+    citacoes = _citacoes_de(chunks)
+    system_prompt = tenant_config.prompts_por_categoria.get(
+        CAT_CARTEIRA, tenant_config.prompt_principal
+    )
+    resposta = await llm.gerar_resposta(
+        system_prompt=system_prompt,
+        contexto=contexto,
+        pergunta=pergunta,
+        temperature=tenant_config.rag.completion_temperature,
+        max_tokens=CARTEIRA_TOP_K * 100,
+    )
+    return RAGResposta(
+        resposta=resposta,
+        categoria=categoria,
+        citacoes=citacoes,
+        via="carteira",
+    )
+
+
+async def _resolver_nomes_condominios(
+    chunks: list[dict[str, Any]],
+    tenant_config: TenantConfig,
+    datasource: DataSource,
+) -> dict[str, str]:
+    """
+    Mapeia `referencia` → nome do condomínio, best-effort.
+
+    Usa a tabela estruturada `condominios` quando o tenant a tem cadastrada.
+    Se não houver cadastro (ou schema), cai para "Condomínio {referencia}".
+    """
+    referencias = {c.get("referencia") for c in chunks if c.get("referencia")}
+    nomes: dict[str, str] = {}
+    tem_schema = "condominios" in tenant_config.schemas_estruturados
+    for ref in referencias:
+        nome = None
+        if tem_schema:
+            try:
+                rows = await datasource.buscar_dados_estruturados("condominios", ref)
+                if rows:
+                    nome = rows[0].get("nome") or rows[0].get("nome_condominio")
+            except Exception as exc:
+                logger.warning(f"Falha resolvendo nome do condomínio ref={ref}: {exc}")
+        nomes[ref] = nome or f"Condomínio {ref}"
+    return nomes
+
+
+# =============================================================================
 # Helpers
 # =============================================================================
 def _formatar_chunks(rows: list[dict[str, Any]]) -> str:
@@ -337,6 +443,35 @@ def _formatar_chunks(rows: list[dict[str, Any]]) -> str:
         partes.append(
             f"[{r.get('file_name', '?')} | {data_str}]\n{r.get('paragraph', '')}"
         )
+    return "\n\n---\n\n".join(partes)
+
+
+def _formatar_chunks_carteira(
+    rows: list[dict[str, Any]], nomes: dict[str, str]
+) -> str:
+    """
+    Formata chunks agrupados por condomínio, para o modelo comparar entre eles.
+
+    Cada bloco começa com o nome do condomínio (+ referência), seguido dos
+    parágrafos daquele condomínio. Preserva a ordem de similaridade dentro
+    de cada grupo.
+    """
+    grupos: dict[str, list[dict[str, Any]]] = {}
+    for r in rows:
+        ref = r.get("referencia") or "?"
+        grupos.setdefault(ref, []).append(r)
+
+    partes: list[str] = []
+    for ref, chunks_grupo in grupos.items():
+        nome = nomes.get(ref, f"Condomínio {ref}")
+        linhas = [f"=== {nome} (referência {ref}) ==="]
+        for r in chunks_grupo:
+            data = r.get("data_valida")
+            data_str = data.strftime("%d/%m/%Y") if data else "data desconhecida"
+            linhas.append(
+                f"[{r.get('file_name', '?')} | {data_str}]\n{r.get('paragraph', '')}"
+            )
+        partes.append("\n".join(linhas))
     return "\n\n---\n\n".join(partes)
 
 

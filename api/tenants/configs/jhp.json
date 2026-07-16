@@ -27,7 +27,9 @@
   "modalidade": "B",
 
   "modulos_contratados": {
-    "chat": true
+    "chat": true,
+    "atas": true,
+    "cobrancas": true
   },
 
   "theme": {

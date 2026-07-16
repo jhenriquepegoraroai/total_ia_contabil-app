@@ -58,6 +58,33 @@ class DataSource(ABC):
         ...
 
     # -------------------------------------------------------------------------
+    # Busca por similaridade na carteira inteira (cross-condomínio)
+    # -------------------------------------------------------------------------
+    @abstractmethod
+    async def busca_similaridade_carteira(
+        self,
+        query_embedding: Sequence[float],
+        top_k: int = 24,
+        threshold: float = 0.30,
+        file_pattern_include: Optional[str] = None,
+        file_pattern_exclude: Optional[str] = None,
+    ) -> list[dict[str, Any]]:
+        """
+        Igual a `busca_similaridade`, mas SEM filtrar por `referencia` — varre
+        todos os condomínios do tenant. Usada para perguntas de carteira
+        (ex: "quais condomínios tiveram aumento de inadimplência em ata?").
+
+        REGRA CRÍTICA: mesmo sem `referencia`, o filtro por `tenant_id`
+        permanece obrigatório (RULES #29/#30). O isolamento é por tenant, nunca
+        por condomínio — a carteira é do tenant.
+
+        Returns:
+            Lista de dicts com as mesmas chaves de `busca_similaridade` MAIS
+            `referencia` (para o chamador agregar por condomínio).
+        """
+        ...
+
+    # -------------------------------------------------------------------------
     # Busca de parágrafos por padrão (sem embeddings — categorias 51, 65, 68)
     # -------------------------------------------------------------------------
     @abstractmethod
