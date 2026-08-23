@@ -147,9 +147,7 @@ WEB_URL_BASE: Final[str] = _optional("WEB_URL_BASE", "http://localhost:3000")
 # Opcional agora — necessário quando o Bloco 6 do demo for ativado.
 ANTHROPIC_API_KEY: Final[str] = _optional("ANTHROPIC_API_KEY", "")
 
-# -----------------------------------------------------------------------------
-# Demo mode
-# -----------------------------------------------------------------------------
-# Quando true, ativa fallback de autenticação sem login real (X-User-Id header).
-# Mantido false em produção. O Bloco 6 do demo ativa via .env.
-DEMO_MODE: Final[bool] = _optional("DEMO_MODE", "false").lower() == "true"
+# NOTA: `DEMO_MODE` foi removido. Ele ativava um bypass de autenticação por
+# header (`X-User-Id`), em que uma variável de ambiente errada concedia
+# superadmin de qualquer tenant. Para navegar sem credencial em DEV, use
+# `POST /auth/dev-token`, que já é desabilitado quando APP_ENV=production.
