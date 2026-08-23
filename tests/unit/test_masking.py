@@ -79,9 +79,9 @@ def test_mascarar_telefone_celular():
 
 
 def test_mascarar_telefone_fixo():
-    # 11 2797-7585 → (11) 2***-7585
-    out = mascarar_telefone("(XX) XXXXX-XXXX")
-    assert out == "(11) 2***-7585"
+    # (11) 2345-6789 → (11) 2***-6789
+    out = mascarar_telefone("(11) 2345-6789")
+    assert out == "(11) 2***-6789"
 
 
 # =============================================================================

@@ -161,7 +161,7 @@ async def test_get_por_nome(configs_dir):
     await registry.carregar_todos(session)
 
     assert registry.get_por_nome("Administradora Exemplo").tenant_id == "lello"
-    assert registry.get_por_nome("  lello condomínios  ").tenant_id == "lello"  # case+trim
+    assert registry.get_por_nome("  administradora exemplo  ").tenant_id == "lello"  # case+trim
     assert registry.get_por_nome("Inexistente") is None
 
 
