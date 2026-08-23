@@ -46,7 +46,7 @@ def _batches(seq: list[T], size: int) -> Iterable[list[T]]:
 async def executar(
     *,
     tenant_config: TenantConfig,
-    referencia: str,
+    referencia: str | None,
     connector: Connector,
     session: AsyncSession,
     embedding_client: EmbeddingClient,
@@ -55,6 +55,11 @@ async def executar(
 ) -> audit_mod.AuditRecord:
     """
     Executa o pipeline completo para `(tenant_id, referencia)`.
+
+    `referencia` pode ser None **apenas** quando o connector fornece a
+    referência em cada chunk (Postgres, Excel e CSV com `coluna_referencia`).
+    Connector que não fornece — todos os de PDF — exige referência aqui, e o
+    pipeline levanta se algum chunk ficar sem ela.
 
     A `session` deve estar em uma `tenant_session(tenant_id)` aberta — quem
     chama é responsável por isso (RULES.md #2).
@@ -88,10 +93,23 @@ async def executar(
 
         # 2. Resolver referência por chunk e content_hash.
         # Se o connector traz `referencia` no chunk, usamos ela; senão, a default.
-        ref_por_chunk: dict[tuple[str, str], str] = {
+        ref_por_chunk: dict[tuple[str, str], str | None] = {
             (c.file_name, c.record_id): (c.referencia or referencia)
             for c in chunks_raw
         }
+
+        # Chunk sem referência não pode seguir. Antes ele herdava um fallback
+        # silencioso e ia parar num condomínio inexistente — o job terminava
+        # 'done' e os documentos ficavam invisíveis para qualquer pergunta,
+        # porque o chat filtra pela referência real do usuário.
+        sem_referencia = [k for k, v in ref_por_chunk.items() if not v]
+        if sem_referencia:
+            amostra = ", ".join(f"{fn}#{rid}" for fn, rid in sem_referencia[:5])
+            raise ValueError(
+                f"{len(sem_referencia)} de {len(chunks_raw)} chunks sem referência "
+                f"de condomínio. O connector não a fornece e nenhuma referência "
+                f"default foi passada na execução. Primeiros: {amostra}"
+            )
         hashes_chunk = {
             (c.file_name, c.record_id): content_hash(
                 tenant_id,

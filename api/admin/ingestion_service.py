@@ -10,6 +10,7 @@ volume esperado (cada admin dispara N jobs por dia, não milhares).
 """
 
 import asyncio
+import json
 import time
 from typing import Any
 from uuid import UUID, uuid4
@@ -31,10 +32,41 @@ from ingestion.pipeline import executar as pipeline_executar
 
 from .sources_service import atualizar_estado_pos_job
 
+# =============================================================================
+# Resolução de referência
+# =============================================================================
+# Tipos cujo connector NUNCA preenche `referencia` no chunk — são todos os
+# caminhos de PDF. Para eles, a referência tem que vir no disparo do job.
+_TIPOS_SEM_REFERENCIA_PROPRIA: frozenset[str] = frozenset(
+    {"pdf_upload", "s3", "azure_blob"}
+)
 
-# =============================================================================
-# Listagem
-# =============================================================================
+
+def _exige_referencia_no_job(tipo: str, config_json: Any) -> bool:
+    """
+    True quando a fonte não consegue resolver a referência sozinha.
+
+    Excel, CSV e Postgres resolvem por linha (`coluna_referencia`) ou por
+    `referencia_default` da própria fonte. Os connectors de PDF não resolvem
+    de jeito nenhum: o `PdfUploadConfig` documenta extração pelo nome do
+    arquivo, mas nenhum connector implementa isso.
+    """
+    if tipo in _TIPOS_SEM_REFERENCIA_PROPRIA:
+        return True
+
+    config = config_json
+    if isinstance(config, str):
+        # Defesa contra driver que devolve JSONB como texto (mesmo cuidado
+        # que o TenantRegistry já toma).
+        try:
+            config = json.loads(config)
+        except json.JSONDecodeError:
+            return True
+    if not isinstance(config, dict):
+        return True
+    return not (config.get("coluna_referencia") or config.get("referencia_default"))
+
+
 def _construir_connector(
     *,
     tipo: str,
@@ -206,6 +238,15 @@ async def disparar_job(
             "Os demais tipos terão ativação em fase futura."
         )
 
+    # 1.1 Referência é obrigatória quando a fonte não sabe resolvê-la sozinha.
+    if not referencia and _exige_referencia_no_job(row["type"], row["config_json"]):
+        raise ValueError(
+            f"Fonte do tipo '{row['type']}' não fornece a referência do "
+            "condomínio por documento — informe a referência no disparo do "
+            "job. Sem isso, o acervo inteiro seria indexado sob um condomínio "
+            "que não existe e ficaria invisível no chat."
+        )
+
     # 2. Cria job
     job_id = uuid4()
     await session.execute(
@@ -318,7 +359,10 @@ async def _executar_job(
             async with tenant_session(tenant_id) as session:
                 audit = await pipeline_executar(
                     tenant_config=tenant_config,
-                    referencia=referencia or "0",
+                    # Sem fallback: `None` só chega aqui quando a fonte resolve
+                    # a referência por linha. Se algum chunk ficar sem, o
+                    # pipeline levanta em vez de inventar um condomínio.
+                    referencia=referencia,
                     connector=connector_pre,
                     session=session,
                     embedding_client=embedding_client,
