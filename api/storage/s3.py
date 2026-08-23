@@ -105,6 +105,47 @@ class S3Storage(Storage):
             )
         return url
 
+    async def signed_url_upload(
+        self,
+        key: str,
+        *,
+        expires_in_seconds: int = 1800,
+        content_type: str | None = None,
+    ) -> str:
+        """
+        Gera presigned URL de UPLOAD (PUT direto pelo cliente).
+
+        Equivalente ao SAS de write+create do Azure Blob: o áudio da
+        assembleia vai do browser para o bucket sem passar pelo backend —
+        arquivo de reunião de duas horas facilmente ultrapassa 100 MB.
+
+        Se `content_type` for informado, ele entra na assinatura e o cliente
+        precisa enviar exatamente o mesmo `Content-Type` no PUT; qualquer
+        divergência faz a S3 recusar com 403.
+        """
+        from botocore.config import Config
+
+        params: dict[str, str] = {"Bucket": self._bucket, "Key": key}
+        if content_type:
+            params["ContentType"] = content_type
+
+        # SigV4 explícito: sem isso o botocore assina em SigV2 contra o
+        # endpoint global (s3.amazonaws.com), que regiões criadas depois de
+        # 2014 recusam — o PUT do cliente voltaria 400 sem explicação óbvia.
+        config = Config(signature_version="s3v4", s3={"addressing_style": "virtual"})
+
+        session = self._session_factory()
+        async with session.client(
+            "s3", region_name=self._region, config=config
+        ) as s3:
+            url = await s3.generate_presigned_url(
+                "put_object",
+                Params=params,
+                ExpiresIn=expires_in_seconds,
+            )
+        logger.debug(f"[s3] presigned upload gerado key={key} ttl={expires_in_seconds}s")
+        return url
+
     async def exists(self, key: str) -> bool:
         session = self._session_factory()
         async with session.client("s3", region_name=self._region) as s3:

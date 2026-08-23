@@ -81,12 +81,13 @@ class Storage(ABC):
         com Azure Blob/S3, evita que o backend seja proxy de arquivos
         grandes (áudios de 2h podem passar de 100MB).
 
-        Implementação opcional — providers que não suportam levantam
-        NotImplementedError. Hoje só Azure Blob implementa (Fase 6 STT).
+        Implementação opcional. Implementam: Azure Blob (SAS write+create) e
+        S3 (presigned put_object). LocalStorage não implementa — em DEV com
+        storage local, o upload de áudio precisa passar pela API.
         """
         raise NotImplementedError(
             f"{type(self).__name__} não suporta signed_url_upload. "
-            "Use STORAGE_PROVIDER=azure_blob."
+            "Use STORAGE_PROVIDER=s3 ou azure_blob."
         )
 
     @abstractmethod
