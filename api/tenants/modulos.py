@@ -17,14 +17,16 @@ Este módulo é deliberadamente "puro" (sem FastAPI/auth) para poder ser
 importado pelo `TenantConfig` sem ciclo. A dependency FastAPI vive em
 `api/tenants/deps.py`.
 
-Portfólio do demo (maio 2026):
-  chat      → Agente Conversacional     — disponível
-  atas      → Agente de Atas            — disponível
-  cobrancas → Agente Financeiro         — disponível (inclui extração DocumentAI)
-  churn     → Agente de Churn           — preview (stub sem backend real)
-  folha     → Agente Folha de Pagamento — preview (roadmap)
-  sindico   → Agente do Síndico         — preview (roadmap)
-  chamado   → Agente de Chamado         — preview (roadmap)
+REGRA: este catálogo lista **somente o que a API serve**. Ele é a fonte de
+verdade do `require_module()`, que gateia rota — um slug aqui sem backend
+correspondente permite que um tenant "contrate" algo que não existe.
+Produto que a Lello opera internamente mas a plataforma ainda não expõe
+pertence ao catálogo comercial da landing, não a este.
+
+Portfólio servido pela API:
+  chat      → Agente Conversacional — RAG sobre documentos do condomínio
+  atas      → Agente de Atas        — geração e workflow de ata de assembleia
+  cobrancas → Agente Financeiro     — extração de PDFs via Document AI
 """
 
 from __future__ import annotations
@@ -95,58 +97,9 @@ MODULOS_DISPONIVEIS: dict[str, ModuloInfo] = {
         status="disponivel",
         modalidades=["A", "B"],
     ),
-    "churn": ModuloInfo(
-        slug="churn",
-        label="Bella Churn",
-        descricao=(
-            "Previsão de risco de saída de condôminos inadimplentes com base "
-            "em histórico de pagamentos e padrão de engajamento. (Em desenvolvimento)"
-        ),
-        nome_produto="Agente de Churn",
-        tagline="Identifica condôminos com risco de saída antes que isso aconteça.",
-        icone="trending-down",
-        status="preview",
-        modalidades=["A", "B", "C"],
-    ),
-    "folha": ModuloInfo(
-        slug="folha",
-        label="Bella Folha",
-        descricao=(
-            "Automação de folha de pagamento dos funcionários do condomínio "
-            "(zelador, porteiros, limpeza) com encargos e obrigações. (Roadmap)"
-        ),
-        nome_produto="Agente Folha de Pagamento",
-        tagline="Processa a folha dos funcionários do condomínio sem planilha.",
-        icone="banknote",
-        status="preview",
-        modalidades=["A", "B"],
-    ),
-    "sindico": ModuloInfo(
-        slug="sindico",
-        label="Bella Síndico",
-        descricao=(
-            "Assistente do síndico para decisões do dia a dia: prazos, "
-            "obrigações legais, priorização de demandas e comunicação. (Roadmap)"
-        ),
-        nome_produto="Agente do Síndico",
-        tagline="Copiloto do síndico para a gestão do condomínio.",
-        icone="bot",
-        status="preview",
-        modalidades=["A", "B"],
-    ),
-    "chamado": ModuloInfo(
-        slug="chamado",
-        label="Bella Chamado",
-        descricao=(
-            "Atendimento e triagem automática de chamados de moradores, "
-            "roteando para o responsável certo. (Roadmap)"
-        ),
-        nome_produto="Agente Atendimento de Chamado",
-        tagline="Recebe, tria e encaminha chamados dos moradores automaticamente.",
-        icone="message-circle",
-        status="preview",
-        modalidades=["A", "B"],
-    ),
+    # `churn` entra aqui junto com o endpoint dele (trilho de ML: zona de
+    # features + worker de scoring). Enquanto a API não servir, ele vive só
+    # no catálogo comercial da landing, como "em operação na Lello".
 }
 
 # Conjunto de slugs válidos — usado pelo validator do `TenantConfig`.
