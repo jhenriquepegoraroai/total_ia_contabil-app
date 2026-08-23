@@ -15,22 +15,23 @@ Espelha o fluxo do script Spark da Lello:
 
 import asyncio
 import time
+from collections.abc import Iterable
 from datetime import datetime
 from itertools import islice
-from typing import Iterable, TypeVar
+from typing import TypeVar
 
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api import config
 from api.tenants.models import TenantConfig
+
 from . import audit as audit_mod
 from .chunking import truncar_para_limite_tokens
 from .connectors.base import Connector, RawChunk
 from .embeddings import EmbeddingClient
 from .idempotency import content_hash
 from .persistence import EmbeddingRow, upsert_batch
-
 
 T = TypeVar("T")
 
@@ -155,7 +156,9 @@ async def executar(
 
                 rows: list[EmbeddingRow] = []
                 erros = 0
-                for r, (chunk, _truncado) in zip(results, batch):
+                # strict=True: `results` vem de um gather sobre `batch`, então
+                # tamanhos diferentes seriam bug — melhor estourar que truncar.
+                for r, (chunk, _truncado) in zip(results, batch, strict=True):
                     if r.embedding is None:
                         erros += 1
                         logger.warning(

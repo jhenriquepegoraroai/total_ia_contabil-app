@@ -11,7 +11,6 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-
 # Schema enviado ao LLM no prompt (formato esperado de resposta).
 TARGET_SCHEMA: dict[str, Any] = {
     "registros": [

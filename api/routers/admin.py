@@ -23,7 +23,6 @@ from api.tenants.models import (
 )
 from api.tenants.modulos import MODULOS_DISPONIVEIS
 
-
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 

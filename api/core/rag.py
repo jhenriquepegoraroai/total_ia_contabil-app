@@ -29,8 +29,8 @@ from api import config as app_config
 from api.llm import LLMClient
 from api.tenants.datasources.base import DataSource
 from api.tenants.models import TenantConfig
-from .classifier import classificar_pergunta
 
+from .classifier import classificar_pergunta
 
 # Categorias especiais herdadas do domínio Lello — outros tenants podem
 # customizar via `prompts_por_categoria` e `respostas_padrao`.

@@ -9,6 +9,7 @@ from functools import lru_cache
 from loguru import logger
 
 from api import config
+
 from .base import Storage
 from .local import LocalStorage
 

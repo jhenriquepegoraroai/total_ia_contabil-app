@@ -10,8 +10,9 @@ isolamento por tenant_id. A interface não confia em filtros do chamador.
 """
 
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from datetime import date
-from typing import Any, Optional, Sequence
+from typing import Any
 
 
 class DataSource(ABC):
@@ -35,8 +36,8 @@ class DataSource(ABC):
         query_embedding: Sequence[float],
         top_k: int = 8,
         threshold: float = 0.30,
-        file_pattern_include: Optional[str] = None,
-        file_pattern_exclude: Optional[str] = None,
+        file_pattern_include: str | None = None,
+        file_pattern_exclude: str | None = None,
     ) -> list[dict[str, Any]]:
         """
         Retorna os top-K parágrafos mais similares ao `query_embedding` para
@@ -66,8 +67,8 @@ class DataSource(ABC):
         query_embedding: Sequence[float],
         top_k: int = 24,
         threshold: float = 0.30,
-        file_pattern_include: Optional[str] = None,
-        file_pattern_exclude: Optional[str] = None,
+        file_pattern_include: str | None = None,
+        file_pattern_exclude: str | None = None,
     ) -> list[dict[str, Any]]:
         """
         Igual a `busca_similaridade`, mas SEM filtrar por `referencia` — varre
@@ -91,9 +92,9 @@ class DataSource(ABC):
     async def buscar_paragrafos_por_pattern(
         self,
         referencia: str,
-        file_pattern_include: Optional[str] = None,
-        file_pattern_exclude: Optional[str] = None,
-        regex_pattern: Optional[str] = None,
+        file_pattern_include: str | None = None,
+        file_pattern_exclude: str | None = None,
+        regex_pattern: str | None = None,
         only_latest_date: bool = False,
     ) -> list[dict[str, Any]]:
         """
@@ -121,7 +122,7 @@ class DataSource(ABC):
         self,
         referencia: str,
         file_pattern_include: str,
-    ) -> Optional[date]:
+    ) -> date | None:
         """
         Retorna a `MAX(data_valida)` entre documentos que batem o pattern.
         None se não houver documento.

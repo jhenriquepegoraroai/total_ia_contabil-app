@@ -17,14 +17,12 @@ Estratégia de boot:
 import json
 import re
 from pathlib import Path
-from typing import Optional
 
 from loguru import logger
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.tenants.models import TenantConfig
-
 
 # Padrão para detectar placeholders não preenchidos em campos críticos.
 _PLACEHOLDER_PATTERN = re.compile(
@@ -113,7 +111,7 @@ class TenantRegistry:
 
         for filepath in sorted(arquivos):
             try:
-                with open(filepath, "r", encoding="utf-8") as f:
+                with open(filepath, encoding="utf-8") as f:
                     data = json.load(f)
                 # Valida antes de inserir.
                 config = TenantConfig(**data)
@@ -165,7 +163,7 @@ class TenantRegistry:
         """Retorna config de um tenant pelo ID."""
         config = self._cache.get(tenant_id)
         if config is None:
-            disponiveis = [tid for tid in self._cache.keys() if tid != "_system"]
+            disponiveis = [tid for tid in self._cache if tid != "_system"]
             raise ValueError(
                 f"Tenant '{tenant_id}' não encontrado. Tenants disponíveis: {disponiveis}"
             )
@@ -173,7 +171,7 @@ class TenantRegistry:
             raise ValueError(f"Tenant '{tenant_id}' está desabilitado.")
         return config
 
-    def get_por_nome(self, nome_empresa: str) -> Optional[TenantConfig]:
+    def get_por_nome(self, nome_empresa: str) -> TenantConfig | None:
         nome_lower = nome_empresa.strip().lower()
         for cfg in self._cache.values():
             if cfg.nome_empresa.strip().lower() == nome_lower:

@@ -6,7 +6,6 @@ Espera ser chamado dentro de `superadmin_session` (sem RLS).
 """
 
 import json
-from datetime import datetime
 from typing import Any
 
 from loguru import logger

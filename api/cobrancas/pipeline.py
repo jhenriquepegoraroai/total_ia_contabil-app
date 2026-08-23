@@ -23,7 +23,6 @@ from api.cobrancas.prompts import EXTRACTION_PROMPT
 from api.cobrancas.schema import TARGET_SCHEMA, CobrancaResultado
 from api.tenants.models import TenantCobrancasConfig
 
-
 # Configurações do pipeline (mesmas constantes do Decob original).
 MAX_TEXT_LENGTH = 10000          # caracteres máximos do full_text enviado ao LLM
 MAX_TABLES_PER_CALL = 10         # tabelas máximas por chamada

@@ -15,8 +15,8 @@ exceto para superadmin que SÓ pode operar via `superadmin_session`.
 """
 
 import ssl
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import AsyncIterator
 
 from loguru import logger
 from sqlalchemy import text

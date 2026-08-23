@@ -34,10 +34,9 @@ def mascarar_email(email: str | None) -> str:
     if not m:
         return mascarar(email)
     local, dominio = m.group(1), m.group(2)
-    if len(local) <= 3:
-        local_masc = "*" * len(local)
-    else:
-        local_masc = local[:3] + "*" * (len(local) - 3)
+    local_masc = (
+        "*" * len(local) if len(local) <= 3 else local[:3] + "*" * (len(local) - 3)
+    )
     return f"{local_masc}@{dominio}"
 
 

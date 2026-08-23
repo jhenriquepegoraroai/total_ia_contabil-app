@@ -28,7 +28,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api import auth
 
-
 _VALID_ROLES = {"admin", "sindico", "atendente", "morador"}
 
 

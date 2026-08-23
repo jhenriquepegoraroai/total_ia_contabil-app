@@ -13,7 +13,6 @@ para suportar idempotência (SKIP do que já foi feito).
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,17 +23,17 @@ class AuditRecord:
     """Estado de uma execução do pipeline."""
 
     tenant_id: str
-    referencia: Optional[str]
+    referencia: str | None
     connector: str
     started_at: datetime
     qtde_chunks_origem: int = 0
     qtde_processada: int = 0
     qtde_skipped: int = 0
     qtde_erros: int = 0
-    finished_at: Optional[datetime] = None
-    duracao_segundos: Optional[float] = None
-    erro_detalhe: Optional[str] = None
-    contador: Optional[int] = None  # preenchido após insert
+    finished_at: datetime | None = None
+    duracao_segundos: float | None = None
+    erro_detalhe: str | None = None
+    contador: int | None = None  # preenchido após insert
 
 
 async def hashes_ja_processados(

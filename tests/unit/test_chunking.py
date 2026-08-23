@@ -1,6 +1,5 @@
 """Testes do truncate de tokens — espelha o comportamento do script Spark."""
 
-import pytest
 
 from ingestion.chunking import (
     EMBEDDING_MAX_TOKENS,
@@ -22,7 +21,8 @@ def test_texto_extremamente_longo_e_truncado():
     # NÃO usar "a" * N: o BPE do text-embedding-3-large compacta repetições
     # (30000 'a's vira ~3750 tokens). Precisa texto diverso para exceder
     # EMBEDDING_MAX_TOKENS (8191).
-    import random, string
+    import random
+    import string
 
     random.seed(0)
     palavras = [

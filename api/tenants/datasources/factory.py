@@ -9,6 +9,7 @@ do adapter executam dentro da transação da `session`.
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.tenants.models import TenantConfig
+
 from .base import DataSource
 from .postgres_pgvector import PostgresPgvectorDataSource
 

@@ -11,11 +11,12 @@ Isolamento (defesa em profundidade):
   3. O construtor amarra `self.tenant_id` — métodos não aceitam tenant variável.
 """
 
+from collections.abc import Sequence
 from datetime import date
-from typing import Any, Optional, Sequence
+from typing import Any
 
 from loguru import logger
-from sqlalchemy import bindparam, text
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base import DataSource
@@ -50,8 +51,8 @@ class PostgresPgvectorDataSource(DataSource):
         query_embedding: Sequence[float],
         top_k: int = 8,
         threshold: float = 0.30,
-        file_pattern_include: Optional[str] = None,
-        file_pattern_exclude: Optional[str] = None,
+        file_pattern_include: str | None = None,
+        file_pattern_exclude: str | None = None,
     ) -> list[dict[str, Any]]:
         # pgvector: `<=>` é distância cosine (0 = idêntico, 2 = oposto).
         # similarity = 1 - distance, mas a maioria dos casos práticos cosine_distance ∈ [0, 1].
@@ -105,8 +106,8 @@ class PostgresPgvectorDataSource(DataSource):
         query_embedding: Sequence[float],
         top_k: int = 24,
         threshold: float = 0.30,
-        file_pattern_include: Optional[str] = None,
-        file_pattern_exclude: Optional[str] = None,
+        file_pattern_include: str | None = None,
+        file_pattern_exclude: str | None = None,
     ) -> list[dict[str, Any]]:
         # Igual a `busca_similaridade`, mas SEM `AND referencia = :ref`. O filtro
         # por tenant_id permanece (defesa em profundidade + RLS). O SELECT expõe
@@ -156,9 +157,9 @@ class PostgresPgvectorDataSource(DataSource):
     async def buscar_paragrafos_por_pattern(
         self,
         referencia: str,
-        file_pattern_include: Optional[str] = None,
-        file_pattern_exclude: Optional[str] = None,
-        regex_pattern: Optional[str] = None,
+        file_pattern_include: str | None = None,
+        file_pattern_exclude: str | None = None,
+        regex_pattern: str | None = None,
         only_latest_date: bool = False,
     ) -> list[dict[str, Any]]:
         params: dict[str, Any] = {"tid": self.tenant_id, "ref": referencia}
@@ -215,7 +216,7 @@ class PostgresPgvectorDataSource(DataSource):
         self,
         referencia: str,
         file_pattern_include: str,
-    ) -> Optional[date]:
+    ) -> date | None:
         sql = """
             SELECT MAX(data_valida) AS max_data
             FROM documents_embeddings

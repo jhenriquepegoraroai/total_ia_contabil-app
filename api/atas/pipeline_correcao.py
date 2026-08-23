@@ -523,7 +523,9 @@ async def corrigir_em_background(
       - falha                  → status='falhou'
     """
     import json
+
     from sqlalchemy import text
+
     from api.atas import jobs_service
     from api.db import tenant_session
 

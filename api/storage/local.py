@@ -5,9 +5,7 @@ Em produção, usar S3Storage (AWS) ou AzureBlobStorage. A interface é a
 mesma — basta trocar STORAGE_PROVIDER no env.
 """
 
-import os
-import shutil
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import BinaryIO
 
@@ -52,7 +50,7 @@ class LocalStorage(Storage):
             key=key,
             size_bytes=size,
             content_type=content_type,
-            last_modified=datetime.now(timezone.utc),
+            last_modified=datetime.now(UTC),
         )
 
     async def open(self, key: str) -> BinaryIO:
@@ -83,7 +81,7 @@ class LocalStorage(Storage):
                     key=str(search_dir.relative_to(self._root)).replace("\\", "/"),
                     size_bytes=stat.st_size,
                     content_type=None,
-                    last_modified=datetime.fromtimestamp(stat.st_mtime, timezone.utc),
+                    last_modified=datetime.fromtimestamp(stat.st_mtime, UTC),
                 )
             ]
 
@@ -95,7 +93,7 @@ class LocalStorage(Storage):
                         key=str(entry.relative_to(self._root)).replace("\\", "/"),
                         size_bytes=stat.st_size,
                         content_type=None,
-                        last_modified=datetime.fromtimestamp(stat.st_mtime, timezone.utc),
+                        last_modified=datetime.fromtimestamp(stat.st_mtime, UTC),
                     )
                 )
         return results

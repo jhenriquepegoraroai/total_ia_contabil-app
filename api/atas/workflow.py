@@ -36,11 +36,9 @@ from dataclasses import dataclass
 from typing import Any, Final, Literal
 from uuid import UUID
 
-from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.atas import jobs_service
-
 
 # =============================================================================
 # Tabela de transições legais (validação)

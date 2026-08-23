@@ -6,23 +6,21 @@ tenant. Em endpoints user-facing, sempre filtrar por tenant_id no SQL
 mesmo assim (defesa em profundidade).
 """
 
-import json
 from typing import Any
 from uuid import UUID
 
 from loguru import logger
-from pydantic import TypeAdapter, ValidationError
+from pydantic import TypeAdapter
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .sources_models import (
-    SourceConfig,
     AzureBlobSourceConfig,
     PdfUploadConfig,
     PostgresSourceConfig,
     S3SourceConfig,
+    SourceConfig,
 )
-
 
 _SourceConfigAdapter = TypeAdapter(SourceConfig)
 
@@ -245,8 +243,8 @@ async def _testar_s3(config: S3SourceConfig) -> dict[str, Any]:
 async def _testar_azure_blob(config: AzureBlobSourceConfig) -> dict[str, Any]:
     """List blobs com max=1 para validar conexão."""
     try:
-        from azure.storage.blob.aio import BlobServiceClient
         from azure.identity.aio import DefaultAzureCredential
+        from azure.storage.blob.aio import BlobServiceClient
     except ImportError:
         return {
             "ok": False,

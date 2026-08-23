@@ -6,7 +6,6 @@ from pydantic import BaseModel
 from api import config
 from api.db import is_db_healthy
 
-
 router = APIRouter(tags=["health"])
 
 

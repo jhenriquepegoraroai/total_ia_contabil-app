@@ -9,14 +9,14 @@ storage configurado e o pipeline lê de lá.
 
 import io
 import re
+from collections.abc import Iterator
 from datetime import date, datetime
-from typing import Iterator
 
 from loguru import logger
 
 from api.storage import Storage, tenant_source_prefix
-from .base import Connector, RawChunk
 
+from .base import Connector, RawChunk
 
 _DATE_PATTERNS = [
     (re.compile(r"(\d{4})[-_](\d{2})[-_](\d{2})"), "%Y-%m-%d"),

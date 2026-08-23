@@ -12,15 +12,15 @@ Para extração mais sofisticada (OCR de PDF escaneado, layout análise),
 substituir por outro connector dedicado no futuro.
 """
 
+import importlib.util
 import re
+from collections.abc import Iterator
 from datetime import date, datetime
 from pathlib import Path
-from typing import Iterator
 
 from loguru import logger
 
 from .base import Connector, RawChunk
-
 
 # Padrão de data no nome do arquivo. Aceita: 2024-03-15, 2024_03_15, 15-03-2024, 15_03_2024.
 _DATE_PATTERNS = [
@@ -50,13 +50,10 @@ class PdfFolderConnector(Connector):
         return f"pdf_folder:{self._path}"
 
     def read(self) -> Iterator[RawChunk]:
-        # Import lazy: pypdf é dependência opcional do pipeline (não da API).
-        try:
-            from pypdf import PdfReader
-        except ImportError as exc:
-            raise RuntimeError(
-                "pypdf não instalado. Instale com: pip install pypdf"
-            ) from exc
+        # pypdf é dependência opcional do pipeline (não da API). Aqui só
+        # checamos disponibilidade — o import de verdade fica em `_ler_pdf`.
+        if importlib.util.find_spec("pypdf") is None:
+            raise RuntimeError("pypdf não instalado. Instale com: pip install pypdf")
 
         pattern = "**/*.pdf" if self._recursive else "*.pdf"
         pdfs = sorted(self._path.glob(pattern))

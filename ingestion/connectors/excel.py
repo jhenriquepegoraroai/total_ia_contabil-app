@@ -12,14 +12,13 @@ Estratégia:
 """
 
 import re
+from collections.abc import Iterator
 from datetime import date, datetime
 from pathlib import Path
-from typing import Any, Iterator
 
 from loguru import logger
 
 from .base import Connector, RawChunk
-
 
 _EXCEL_RE = re.compile(r"\.(xlsx|xlsm|xls)$", re.IGNORECASE)
 

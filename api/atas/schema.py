@@ -14,7 +14,6 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-
 # Estados possíveis da máquina (espelha o CHECK do DB).
 AtaStatus = Literal[
     "rascunho",

@@ -29,7 +29,6 @@ from typing import Any
 from bs4 import BeautifulSoup
 from loguru import logger
 
-
 # CSS embutido no HTML resultante. Mantido idêntico ao original.
 CSS_STYLES = """
 <style>
@@ -371,7 +370,9 @@ async def comparar_em_background(
     `proximo_status`. Engole exceções (registra em erro_detalhe).
     """
     import json
+
     from sqlalchemy import text
+
     from api.atas import jobs_service
     from api.db import tenant_session
 

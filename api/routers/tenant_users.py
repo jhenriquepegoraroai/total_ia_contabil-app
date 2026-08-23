@@ -28,7 +28,6 @@ from api.admin import users_service
 from api.auth import CurrentUser, tenant_admin_required
 from api.db import superadmin_session
 
-
 router = APIRouter(prefix="/tenant-users", tags=["tenant-users"])
 
 

@@ -14,7 +14,6 @@ from loguru import logger
 from api.llm import LLMClient
 from api.tenants.models import TenantConfig
 
-
 # Captura o primeiro número (com sinal opcional) na resposta — `12`, `-1`, `cat 51` → 51.
 _NUMERO_RE = re.compile(r"-?\d+")
 

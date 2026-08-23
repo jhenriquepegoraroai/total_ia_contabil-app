@@ -28,7 +28,6 @@ from __future__ import annotations
 
 import asyncio
 import io
-import json
 import re
 import time
 from dataclasses import dataclass
@@ -42,9 +41,7 @@ from api.atas import jobs_service
 from api.db import tenant_session
 from api.llm.openai_client import get_llm_client_for_tenant
 from api.storage import get_storage
-from api.storage.base import StorageError
 from api.tenants.models import TenantConfig
-
 
 # Tamanho de cada chunk de áudio enviado ao Whisper (em milissegundos).
 # 10 min × 64kbps mono ≈ 4.8MB → bem abaixo do limite 25MB.

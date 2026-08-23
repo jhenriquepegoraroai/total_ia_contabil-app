@@ -14,7 +14,6 @@ from sqlalchemy import text
 from api import auth, config
 from api.db import superadmin_session
 
-
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 

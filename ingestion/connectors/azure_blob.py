@@ -10,14 +10,13 @@ import asyncio
 import re
 import shutil
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator
 
 from loguru import logger
 
 from .base import Connector, RawChunk
 from .pdf_folder import PdfFolderConnector
-
 
 _PDF_RE = re.compile(r"\.pdf$", re.IGNORECASE)
 
@@ -66,8 +65,8 @@ class AzureBlobPdfConnector(Connector):
             self._limpar_tempdir()
 
     async def _baixar_pdfs(self) -> Path:
-        from azure.storage.blob.aio import BlobServiceClient
         from azure.identity.aio import DefaultAzureCredential
+        from azure.storage.blob.aio import BlobServiceClient
 
         self._tempdir = Path(tempfile.mkdtemp(prefix="avc_azblob_"))
 

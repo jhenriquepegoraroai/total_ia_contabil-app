@@ -23,13 +23,13 @@ separada (não há event loop ativo nessa thread), então `asyncio.run` é OK.
 
 import asyncio
 import re
+from collections.abc import Iterator
 from datetime import date, datetime
-from typing import Any, Iterator
+from typing import Any
 
 from loguru import logger
 
 from .base import Connector, RawChunk
-
 
 # Identificadores SQL seguros — letras/números/underscore. Evita injeção.
 _IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")

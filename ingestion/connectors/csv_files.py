@@ -6,10 +6,9 @@ colunas é o mesmo do `ExcelFolderConnector`.
 """
 
 import csv
-import re
+from collections.abc import Iterator
 from datetime import date, datetime
 from pathlib import Path
-from typing import Iterator
 
 from loguru import logger
 
@@ -63,7 +62,7 @@ class CsvFolderConnector(Connector):
                 logger.exception(f"Erro lendo {arquivo.name}: {exc}")
 
     def _ler_arquivo(self, arquivo: Path) -> Iterator[RawChunk]:
-        with open(arquivo, "r", encoding=self._encoding, newline="") as f:
+        with open(arquivo, encoding=self._encoding, newline="") as f:
             reader = csv.DictReader(f, delimiter=self._delimiter)
             if self._coluna_texto not in (reader.fieldnames or []):
                 logger.error(

@@ -8,7 +8,7 @@ Convenção de keys: idem LocalStorage (`<tenant>/sources/<source_id>/<filename>
 """
 
 import io
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import BinaryIO
 
 from loguru import logger
@@ -59,7 +59,7 @@ class S3Storage(Storage):
             key=key,
             size_bytes=size,
             content_type=content_type,
-            last_modified=datetime.now(timezone.utc),
+            last_modified=datetime.now(UTC),
         )
 
     async def open(self, key: str) -> BinaryIO:

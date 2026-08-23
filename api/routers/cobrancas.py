@@ -13,7 +13,7 @@ isolamento mantido mesmo com bucket compartilhado.
 import hashlib
 import io
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Annotated, Any
 from uuid import UUID, uuid4
 
@@ -39,7 +39,6 @@ from api.cobrancas.schema import CobrancaResultado
 from api.db import tenant_session
 from api.storage.factory import get_storage
 from api.tenants.deps import require_module
-
 
 router = APIRouter(prefix="/cobrancas", tags=["cobrancas"])
 
@@ -347,7 +346,7 @@ async def _processar_em_background(
     Roda o pipeline e atualiza o job. Engole exceções (já registradas em
     error_detail no DB) — BackgroundTasks não tem onde reportar.
     """
-    started_at = datetime.now(timezone.utc)
+    started_at = datetime.now(UTC)
     try:
         async with tenant_session(tenant_id) as session:
             await jobs_service.marcar_running(session, tenant_id=tenant_id, job_id=job_id)

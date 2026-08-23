@@ -34,10 +34,8 @@ def _modelo_moderno(model: str) -> bool:
     m = (model or "").lower()
     if m.startswith(("gpt-5", "o1", "o3", "o4")):
         return True
-    if m.startswith("gpt-4.") and not m.startswith("gpt-4.0"):
-        # gpt-4.1, 4.5, etc — todos modernos.
-        return True
-    return False
+    # gpt-4.1, 4.5, etc — todos modernos; gpt-4.0 não.
+    return m.startswith("gpt-4.") and not m.startswith("gpt-4.0")
 
 
 class LLMClient:

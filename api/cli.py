@@ -11,14 +11,11 @@ Comandos:
 import argparse
 import asyncio
 import sys
-from uuid import UUID
 
-from loguru import logger
 from sqlalchemy import text
 
 from api import auth
 from api.db import dispose_engine, superadmin_session
-
 
 _SYSTEM_TENANT = "_system"
 

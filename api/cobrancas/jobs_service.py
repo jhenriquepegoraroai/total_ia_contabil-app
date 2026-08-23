@@ -15,7 +15,7 @@ Operações:
   - marcar_failed(...)
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -135,7 +135,7 @@ async def marcar_done(
     valor_total: float,
     started_at: datetime,
 ) -> None:
-    duracao = (datetime.now(timezone.utc) - started_at).total_seconds()
+    duracao = (datetime.now(UTC) - started_at).total_seconds()
     await session.execute(
         text(
             """
@@ -191,7 +191,7 @@ async def marcar_failed(
     started_at: datetime | None = None,
 ) -> None:
     duracao = (
-        (datetime.now(timezone.utc) - started_at).total_seconds() if started_at else None
+        (datetime.now(UTC) - started_at).total_seconds() if started_at else None
     )
     await session.execute(
         text(

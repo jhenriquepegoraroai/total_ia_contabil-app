@@ -18,10 +18,10 @@ Tipos suportados nesta fase (6.1):
 """
 
 from datetime import datetime
-from typing import Any, Literal, Annotated
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 
 
 # =============================================================================

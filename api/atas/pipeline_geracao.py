@@ -35,7 +35,6 @@ from uuid import UUID
 from loguru import logger
 from openai import AsyncOpenAI
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.atas import jobs_service
 from api.atas.prompts import PROMPT_PRINCIPAL, PROMPT_QUORUM_ESPECIAL, PROMPT_REVISAO
@@ -180,7 +179,7 @@ class InsumosGeracao:
         return erros
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> "InsumosGeracao":
+    def from_dict(cls, d: dict[str, Any]) -> InsumosGeracao:
         return cls(
             cabecalho=d.get("cabecalho", ""),
             resumo=d.get("resumo", ""),

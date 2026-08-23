@@ -14,7 +14,6 @@ from openpyxl.utils import get_column_letter
 
 from api.cobrancas.schema import CobrancaResultado
 
-
 # Ordem das colunas + largura aproximada em chars.
 COLUMN_SPECS: list[tuple[str, int]] = [
     ("CONDOMINIO", 36),

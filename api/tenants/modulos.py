@@ -31,7 +31,7 @@ Portfólio servido pela API:
 
 from __future__ import annotations
 
-from typing import Literal, TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel
 
@@ -106,6 +106,6 @@ MODULOS_DISPONIVEIS: dict[str, ModuloInfo] = {
 MODULO_SLUGS: frozenset[str] = frozenset(MODULOS_DISPONIVEIS.keys())
 
 
-def tenant_tem_modulo(tenant_config: "TenantConfig", slug: str) -> bool:
+def tenant_tem_modulo(tenant_config: TenantConfig, slug: str) -> bool:
     """Retorna True se o tenant contratou o módulo `slug` (e está marcado como ativo)."""
     return bool(tenant_config.modulos_contratados.get(slug, False))

@@ -11,9 +11,9 @@ disso).
 """
 
 from abc import ABC, abstractmethod
+from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import date
-from typing import Iterator
 
 
 @dataclass(frozen=True, slots=True)

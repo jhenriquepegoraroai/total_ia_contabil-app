@@ -15,3 +15,12 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "SIM"]
 ignore = ["E501"]  # line length tratado pelo formatter
+
+[tool.ruff.lint.per-file-ignores]
+# B008 proíbe chamada de função em default de argumento — que é exatamente
+# o idioma do FastAPI (`File(...)`, `Depends(...)`, `Query(...)`). A regra
+# não se aplica a routers.
+"api/routers/*.py" = ["B008"]
+# Espaço no fim da linha DENTRO de um prompt é conteúdo, não formatação:
+# remover muda o texto enviado ao modelo (há exemplos few-shot com "ANÁLISE: ").
+"api/atas/prompts.py" = ["W291"]

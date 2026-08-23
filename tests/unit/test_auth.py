@@ -1,10 +1,11 @@
 """Testes do módulo de autenticação JWT."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi import HTTPException
 from jose import jwt
+from pydantic import ValidationError
 
 from api import auth, config
 
@@ -29,7 +30,7 @@ def test_token_assinado_com_secret_diferente_levanta():
         "sub": "u",
         "tenant_id": "lello",
         "role": "admin",
-        "exp": int((datetime.now(timezone.utc) + timedelta(hours=1)).timestamp()),
+        "exp": int((datetime.now(UTC) + timedelta(hours=1)).timestamp()),
     }
     token_falso = jwt.encode(payload, "secret-errado", algorithm=config.JWT_ALGORITHM)
     with pytest.raises(HTTPException):
@@ -41,7 +42,7 @@ def test_token_expirado_levanta():
         "sub": "u",
         "tenant_id": "lello",
         "role": "admin",
-        "exp": int((datetime.now(timezone.utc) - timedelta(hours=1)).timestamp()),
+        "exp": int((datetime.now(UTC) - timedelta(hours=1)).timestamp()),
     }
     token = jwt.encode(payload, config.SECRET_KEY_JWT, algorithm=config.JWT_ALGORITHM)
     with pytest.raises(HTTPException):
@@ -53,8 +54,10 @@ def test_payload_minimo_obrigatorio():
     payload = {
         "sub": "u",
         "role": "admin",
-        "exp": int((datetime.now(timezone.utc) + timedelta(hours=1)).timestamp()),
+        "exp": int((datetime.now(UTC) + timedelta(hours=1)).timestamp()),
     }
     token = jwt.encode(payload, config.SECRET_KEY_JWT, algorithm=config.JWT_ALGORITHM)
-    with pytest.raises(Exception):  # ValidationError ou HTTPException
+    # Falha por validação do TokenPayload (Pydantic) ou pelo guard HTTP —
+    # o que importa é que não passa. `Exception` cru esconderia até TypeError.
+    with pytest.raises((ValidationError, HTTPException)):
         auth.decodificar_token(token)

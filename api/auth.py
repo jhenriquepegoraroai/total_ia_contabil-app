@@ -12,7 +12,7 @@ Superadmin: o token carrega `is_superadmin=true` quando o usuário tem essa flag
 no DB. Rotas protegidas por `superadmin_required` rejeitam tokens normais.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, Request, status
@@ -22,7 +22,6 @@ from passlib.context import CryptContext
 from pydantic import BaseModel
 
 from api import config
-
 
 _oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
 _pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -73,7 +72,7 @@ def criar_token(
     role: str = "morador",
     is_superadmin: bool = False,
 ) -> str:
-    expira = datetime.now(timezone.utc) + timedelta(minutes=config.JWT_EXPIRES_MINUTES)
+    expira = datetime.now(UTC) + timedelta(minutes=config.JWT_EXPIRES_MINUTES)
     payload = {
         "sub": sub,
         "tenant_id": tenant_id,

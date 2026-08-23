@@ -7,7 +7,7 @@ key ou SAS token.
 """
 
 import io
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import BinaryIO
 
 from loguru import logger
@@ -90,8 +90,8 @@ class AzureBlobStorage(Storage):
 
     def _service_client(self):
         """Cria BlobServiceClient para uma operação. Caller fecha com `async with`."""
-        from azure.storage.blob.aio import BlobServiceClient
         from azure.identity.aio import DefaultAzureCredential
+        from azure.storage.blob.aio import BlobServiceClient
 
         if self._connection_string:
             return BlobServiceClient.from_connection_string(self._connection_string)
@@ -126,7 +126,7 @@ class AzureBlobStorage(Storage):
             key=key,
             size_bytes=size,
             content_type=content_type,
-            last_modified=datetime.now(timezone.utc),
+            last_modified=datetime.now(UTC),
         )
 
     async def open(self, key: str) -> BinaryIO:
@@ -142,10 +142,17 @@ class AzureBlobStorage(Storage):
     async def delete(self, key: str) -> None:
         async with self._service_client() as svc:
             blob = svc.get_blob_client(container=self._container, blob=key)
+            # Import lazy, como no resto do módulo: o SDK do Azure só é
+            # exigido quando este provider está em uso.
+            from azure.core.exceptions import ResourceNotFoundError
+
             try:
                 await blob.delete_blob()
-            except Exception:
-                pass  # idempotente — não levanta se já não existe
+            except ResourceNotFoundError:
+                # Delete é idempotente: blob que já não existe não é erro.
+                # Só esse caso é engolido — falha de credencial ou de rede
+                # continua propagando (RULES: `except: pass` é proibido).
+                logger.debug(f"delete no-op, blob inexistente: {key}")
 
     async def list_prefix(self, prefix: str) -> list[StorageObject]:
         out: list[StorageObject] = []
@@ -199,7 +206,7 @@ class AzureBlobStorage(Storage):
         permission_kwargs: dict,
     ) -> str:
         """Helper interno — monta SAS URL completa usando o public_endpoint."""
-        from azure.storage.blob import generate_blob_sas, BlobSasPermissions
+        from azure.storage.blob import BlobSasPermissions, generate_blob_sas
 
         if not self._account_key:
             raise StorageError(
@@ -213,7 +220,7 @@ class AzureBlobStorage(Storage):
             blob_name=key,
             account_key=self._account_key,
             permission=BlobSasPermissions(**permission_kwargs),
-            expiry=datetime.now(timezone.utc) + timedelta(seconds=expires_in_seconds),
+            expiry=datetime.now(UTC) + timedelta(seconds=expires_in_seconds),
         )
         # Usa endpoint público (em DEV aponta pro localhost do Azurite, em
         # prod pro blob.core.windows.net). O endpoint já vem sem `/`-final.

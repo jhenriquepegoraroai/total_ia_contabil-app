@@ -40,8 +40,10 @@ async def tema_publico(tenant_id: str, request: Request) -> TemaPublico:
     registry = request.app.state.tenant_registry
     try:
         cfg = registry.get(tenant_id, only_enabled=True)
-    except ValueError:
-        raise HTTPException(status_code=404, detail=f"Tenant '{tenant_id}' não encontrado.")
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=404, detail=f"Tenant '{tenant_id}' não encontrado."
+        ) from exc
 
     t = cfg.theme
     return TemaPublico(

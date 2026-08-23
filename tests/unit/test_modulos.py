@@ -25,7 +25,7 @@ def test_catalogo_tem_chat_e_cobrancas():
 
 
 def test_modulo_slugs_bate_com_dicionario():
-    assert MODULO_SLUGS == frozenset(MODULOS_DISPONIVEIS.keys())
+    assert frozenset(MODULOS_DISPONIVEIS.keys()) == MODULO_SLUGS
 
 
 def test_slugs_sao_snake_lower_ascii():

@@ -12,7 +12,6 @@ from api.tenants.models import (
     mascarar_gcp_credentials,
 )
 
-
 # Service account válido mínimo, usado em vários testes.
 VALID_SA = {
     "type": "service_account",

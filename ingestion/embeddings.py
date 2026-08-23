@@ -18,7 +18,7 @@ import asyncio
 from dataclasses import dataclass
 
 from loguru import logger
-from openai import AsyncOpenAI, APIStatusError, RateLimitError
+from openai import APIStatusError, AsyncOpenAI, RateLimitError
 
 from api import config
 

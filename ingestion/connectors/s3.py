@@ -15,14 +15,13 @@ import asyncio
 import re
 import shutil
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator
 
 from loguru import logger
 
 from .base import Connector, RawChunk
 from .pdf_folder import PdfFolderConnector
-
 
 _PDF_RE = re.compile(r"\.pdf$", re.IGNORECASE)
 

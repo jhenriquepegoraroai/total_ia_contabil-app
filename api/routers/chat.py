@@ -35,7 +35,6 @@ from api.llm import get_llm_client_for_tenant
 from api.tenants.datasources.factory import criar_datasource
 from api.tenants.deps import require_module
 
-
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 

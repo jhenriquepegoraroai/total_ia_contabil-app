@@ -10,10 +10,9 @@ Os endpoints de pipeline (gerar, comparar, corrigir, transcrever) retornam
 501 Not Implemented até as fases correspondentes.
 """
 
+from datetime import datetime
 from typing import Annotated, Any
 from uuid import UUID
-
-from datetime import datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
 from loguru import logger
@@ -41,7 +40,6 @@ from api.atas.schema import (
 from api.auth import CurrentUser, usuario_atual
 from api.db import tenant_session
 from api.tenants.deps import require_module
-
 
 router = APIRouter(prefix="/atas", tags=["atas"])
 

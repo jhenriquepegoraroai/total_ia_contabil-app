@@ -19,6 +19,7 @@ from loguru import logger
 from api import config
 from api.db import dispose_engine, tenant_session
 from api.tenants.registry import TenantRegistry
+
 from .connectors import criar_connector
 from .embeddings import cliente_padrao
 from .pipeline import executar

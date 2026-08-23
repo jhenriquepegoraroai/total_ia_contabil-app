@@ -11,7 +11,6 @@ volume esperado (cada admin dispara N jobs por dia, não milhares).
 
 import asyncio
 import time
-from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -21,15 +20,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api import config
 from api.db import superadmin_session, tenant_session
-from api.tenants.registry import TenantRegistry
 from api.storage import get_storage, tenant_source_prefix
 from api.storage.local import LocalStorage
+from api.tenants.registry import TenantRegistry
 from ingestion.connectors.base import Connector
 from ingestion.connectors.pdf_folder import PdfFolderConnector
 from ingestion.connectors.storage_pdf import StoragePdfConnector
 from ingestion.embeddings import cliente_padrao
 from ingestion.pipeline import executar as pipeline_executar
-from .sources_service import atualizar_estado_pos_job, parse_config
+
+from .sources_service import atualizar_estado_pos_job
 
 
 # =============================================================================
@@ -288,9 +288,15 @@ async def _executar_job(
 
         # Wrapper trivial que devolve os chunks pre-lidos.
         class _PreLidoConnector(Connector):
-            def __init__(self, items, desc): self._items = items; self._desc = desc
-            def read(self): return iter(self._items)
-            def describe(self) -> str: return self._desc
+            def __init__(self, items, desc):
+                self._items = items
+                self._desc = desc
+
+            def read(self):
+                return iter(self._items)
+
+            def describe(self) -> str:
+                return self._desc
 
         connector_pre = _PreLidoConnector(chunks_pre_lidos, connector.describe())
 
@@ -376,4 +382,11 @@ async def _executar_job(
                     session, source_id=source_id, status="failed"
                 )
             except Exception:
-                pass
+                # Não re-levanta: já estamos no caminho de falha do job e
+                # perder o registro do estado não pode mascarar o erro
+                # original. Mas engolir calado esconderia sessão caída —
+                # loga com stack (RULES: `except: pass` é proibido).
+                logger.exception(
+                    f"Falha ao marcar source_id={source_id} como 'failed' "
+                    f"apos erro no job {job_id}"
+                )
