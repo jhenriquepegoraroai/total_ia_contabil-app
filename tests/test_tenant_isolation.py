@@ -61,61 +61,109 @@ async def seed_dois_tenants(session_factory):
       - tenant 'tA' tem condominio referencia '111' com 2 chunks de embeddings
       - tenant 'tB' tem condominio referencia '222' com 2 chunks de embeddings
       - Ambos têm dados estruturados em `condominios`.
+
+    O seed roda COM `app.current_tenant` setado, um tenant de cada vez. Não é
+    detalhe de estilo: `condominios` e `documents_embeddings` têm
+    `FORCE ROW LEVEL SECURITY` e policy `WITH CHECK (tenant_id =
+    current_tenant())`, então INSERT sem tenant setado é recusado.
+
+    A alternativa — conectar como superusuário para semear — quebraria
+    `test_sem_app_current_tenant_rls_bloqueia`, porque superusuário ignora RLS
+    e enxergaria todas as linhas. Com uma role só, semear por fora e verificar
+    o bloqueio de RLS são requisitos incompatíveis; semear pelo mesmo caminho
+    da aplicação resolve os dois e ainda exercita a policy de escrita.
     """
     embedding_a1 = [0.1] * 3072
     embedding_a2 = [0.2] * 3072
     embedding_b1 = [0.9] * 3072
     embedding_b2 = [0.8] * 3072
 
+    linhas = {
+        "tA": [
+            ("111", "r1", "paragrafo do tenant A item 1", embedding_a1),
+            ("111", "r2", "paragrafo do tenant A item 2", embedding_a2),
+        ],
+        "tB": [
+            ("222", "r1", "paragrafo do tenant B item 1", embedding_b1),
+            ("222", "r2", "paragrafo do tenant B item 2", embedding_b2),
+        ],
+    }
+    condominios = {"tA": ("111", "Cond A111"), "tB": ("222", "Cond B222")}
+
+    await _limpar(session_factory)
+
+    # `tenants` não tem RLS (ver 001_init.sql) — pode ser semeado sem contexto.
     async with session_factory() as s:
-        # Garante limpeza de execuções anteriores (sem RLS — usa role super)
-        await s.execute(text("DELETE FROM documents_embeddings WHERE tenant_id IN ('tA','tB')"))
-        await s.execute(text("DELETE FROM condominios WHERE tenant_id IN ('tA','tB')"))
-        await s.execute(text("DELETE FROM tenant_configs WHERE tenant_id IN ('tA','tB')"))
-        await s.execute(text("DELETE FROM tenants WHERE id IN ('tA','tB')"))
+        await s.execute(
+            text(
+                "INSERT INTO tenants (id, nome_empresa, enabled) "
+                "VALUES ('tA','Tenant A',true), ('tB','Tenant B',true)"
+            )
+        )
+        await s.commit()
 
-        await s.execute(text("INSERT INTO tenants (id, nome_empresa, enabled) VALUES ('tA','Tenant A',true), ('tB','Tenant B',true)"))
-
-        # Condomínios estruturados
-        await s.execute(text(
-            "INSERT INTO condominios (tenant_id, referencia, nome) VALUES "
-            "('tA','111','Cond A111'), ('tB','222','Cond B222')"
-        ))
-
-        # Embeddings
-        for tid, ref, rid, par, emb in [
-            ("tA", "111", "r1", "paragrafo do tenant A item 1", embedding_a1),
-            ("tA", "111", "r2", "paragrafo do tenant A item 2", embedding_a2),
-            ("tB", "222", "r1", "paragrafo do tenant B item 1", embedding_b1),
-            ("tB", "222", "r2", "paragrafo do tenant B item 2", embedding_b2),
-        ]:
+    for tid in ("tA", "tB"):
+        s = await _open_tenant_session(session_factory, tid)
+        try:
+            ref, nome = condominios[tid]
             await s.execute(
                 text(
-                    "INSERT INTO documents_embeddings "
-                    "(tenant_id, referencia, file_name, record_id, paragraph, embedding, content_hash) "
-                    "VALUES (:tid, :ref, :fn, :rid, :par, CAST(:emb AS vector), :hash)"
+                    "INSERT INTO condominios (tenant_id, referencia, nome) "
+                    "VALUES (:tid, :ref, :nome)"
                 ),
-                {
-                    "tid": tid,
-                    "ref": ref,
-                    "fn": f"doc_{tid}.pdf",
-                    "rid": rid,
-                    "par": par,
-                    "emb": "[" + ",".join(str(x) for x in emb) + "]",
-                    "hash": f"hash_{tid}_{rid}",
-                },
+                {"tid": tid, "ref": ref, "nome": nome},
             )
-        await s.commit()
+            for ref, rid, par, emb in linhas[tid]:
+                await s.execute(
+                    text(
+                        "INSERT INTO documents_embeddings "
+                        "(tenant_id, referencia, file_name, record_id, paragraph, "
+                        "embedding, content_hash) "
+                        "VALUES (:tid, :ref, :fn, :rid, :par, CAST(:emb AS vector), :hash)"
+                    ),
+                    {
+                        "tid": tid,
+                        "ref": ref,
+                        "fn": f"doc_{tid}.pdf",
+                        "rid": rid,
+                        "par": par,
+                        "emb": "[" + ",".join(str(x) for x in emb) + "]",
+                        "hash": f"hash_{tid}_{rid}",
+                    },
+                )
+            await s.commit()
+        finally:
+            await s.close()
 
     yield {
         "tA": {"ref": "111", "embedding_query": embedding_a1},
         "tB": {"ref": "222", "embedding_query": embedding_b1},
     }
 
-    # Cleanup
+    await _limpar(session_factory)
+
+
+async def _limpar(session_factory) -> None:
+    """
+    Remove os dados de teste. DELETE também passa por RLS nas tabelas com
+    FORCE, então cada tenant é limpo dentro do próprio contexto.
+    """
+    for tid in ("tA", "tB"):
+        s = await _open_tenant_session(session_factory, tid)
+        try:
+            await s.execute(
+                text("DELETE FROM documents_embeddings WHERE tenant_id = :tid"),
+                {"tid": tid},
+            )
+            await s.execute(
+                text("DELETE FROM condominios WHERE tenant_id = :tid"), {"tid": tid}
+            )
+            await s.commit()
+        finally:
+            await s.close()
+
     async with session_factory() as s:
-        await s.execute(text("DELETE FROM documents_embeddings WHERE tenant_id IN ('tA','tB')"))
-        await s.execute(text("DELETE FROM condominios WHERE tenant_id IN ('tA','tB')"))
+        await s.execute(text("DELETE FROM tenant_configs WHERE tenant_id IN ('tA','tB')"))
         await s.execute(text("DELETE FROM tenants WHERE id IN ('tA','tB')"))
         await s.commit()
 

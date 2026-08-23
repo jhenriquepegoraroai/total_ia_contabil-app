@@ -1,0 +1,115 @@
+name: CI
+
+on:
+  push:
+    branches: ["main", "feat/**", "fix/**"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  lint-python:
+    name: Lint Python (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Run ruff
+        run: ruff check api/ ingestion/ tests/ scripts/
+
+  lint-typescript:
+    name: Lint + typecheck TypeScript
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+  test-python:
+    name: Pytest (inclui isolamento cross-tenant)
+    runs-on: ubuntu-latest
+
+    # Postgres com pgvector: sem ele os testes de isolamento — a regra crítica
+    # do RULES.md — seriam pulados, que é exatamente como eles ficaram sem
+    # verificação até agora.
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: assistente_condominios_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      PGPASSWORD: postgres
+      PGHOST: localhost
+      PGUSER: postgres
+      PGDATABASE: assistente_condominios_test
+      # A aplicação conecta com role restrita, NÃO com superusuário: superusuário
+      # ignora RLS, e o teste que exige zero linhas sem `app.current_tenant`
+      # passaria por engano.
+      DATABASE_URL: postgresql+asyncpg://avc_app:avc_dev@localhost:5432/assistente_condominios_test
+      OPEN_AI_KEY: sk-test-fake-nao-usada
+      SECRET_KEY_JWT: chave-de-teste-sem-valor
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r api/requirements.txt
+
+      - name: Aplicar migrations em ordem
+        run: |
+          for f in db/migrations/*.sql; do
+            echo "--> $f"
+            psql -v ON_ERROR_STOP=1 -f "$f"
+          done
+          psql -c "SELECT filename FROM schema_migrations ORDER BY filename;"
+
+      - name: Criar role da aplicação (sem BYPASSRLS, sem ser dona das tabelas)
+        run: |
+          psql -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE ROLE avc_app LOGIN PASSWORD 'avc_dev';
+          GRANT USAGE ON SCHEMA public TO avc_app;
+          GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO avc_app;
+          GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO avc_app;
+          SQL
+
+      - name: Run pytest
+        run: pytest tests/ -v --tb=short
