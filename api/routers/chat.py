@@ -7,6 +7,10 @@ resposta com citações + categoria + trace_id.
 
 REGRA CRÍTICA (RULES.md #4): tenant_id vem do JWT, NUNCA do body.
 
+Gate de módulo: exige `chat` contratado pelo tenant (`require_module`), mesmo
+padrão de `atas.py` e `cobrancas.py`. Sem ele, tenant que não contratou o
+módulo conseguia chatar assim mesmo.
+
 Persistência (RULES.md #28 — histórico por tenant):
   - Primeira request com `session_id=None` → cria chat_sessions
   - Cada request grava 2 chat_messages (user + assistant)
@@ -29,6 +33,7 @@ from api.core.rag import RAGResposta, responder
 from api.db import tenant_session
 from api.llm import get_llm_client_for_tenant
 from api.tenants.datasources.factory import criar_datasource
+from api.tenants.deps import require_module
 
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -63,7 +68,11 @@ class ChatResponse(BaseModel):
 # =============================================================================
 # Endpoint
 # =============================================================================
-@router.post("", response_model=ChatResponse)
+@router.post(
+    "",
+    response_model=ChatResponse,
+    dependencies=[Depends(require_module("chat"))],
+)
 async def chat(
     payload: ChatRequest,
     request: Request,
