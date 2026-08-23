@@ -59,15 +59,16 @@ export default function NewTenantPage() {
   });
   const [cobrancas, setCobrancas] = useState<TenantCobrancasConfig | null>(null);
 
-  // ---- Demo quick-fill ------------------------------------------------
-  function preencherJHP() {
-    setTenantId("jhp");
-    setNomeEmpresa("JHP Administradora");
+  // ---- Preenchimento rápido para demonstração --------------------------
+  // Administradora fictícia, usada para mostrar multi-tenancy ao vivo.
+  function preencherDemo() {
+    setTenantId("demo");
+    setNomeEmpresa("Administradora Demonstração");
     setNomeAssistente("Bella");
     setTelefone("(11) 91234-5678");
     setWhatsapp("5511912345678");
     setWhatsappLink("https://wa.me/5511912345678");
-    setEmail("contato@jhpadm.com.br");
+    setEmail("contato@exemplo.com.br");
     setAppMoradores("http://localhost:3001");
     setPortalResolva("http://localhost:3001");
     setPrimary("#1E40AF");
@@ -165,11 +166,11 @@ export default function NewTenantPage() {
           </div>
           <button
             type="button"
-            onClick={preencherJHP}
+            onClick={preencherDemo}
             className="shrink-0 inline-flex items-center gap-2 rounded-lg border-2 border-dashed border-amber-400 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-100 transition-colors"
-            title="Pré-preenche todos os campos com dados fictícios da JHP Administradora para demonstração ao vivo"
+            title="Pré-preenche os campos com uma administradora fictícia, para demonstração ao vivo"
           >
-            ⚡ Demo — Pré-preencher JHP
+            ⚡ Demo — Pré-preencher
           </button>
         </div>
       </header>

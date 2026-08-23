@@ -1,7 +1,7 @@
 {
   "schema_version": "2.0",
-  "tenant_id": "jhp",
-  "nome_empresa": "JHP Administradora",
+  "tenant_id": "demo",
+  "nome_empresa": "Administradora Demonstração",
   "nome_assistente": "Bella",
   "enabled": true,
 
@@ -9,7 +9,7 @@
     "telefone": "(11) 91234-5678",
     "whatsapp": "5511912345678",
     "whatsapp_link": "https://wa.me/5511912345678",
-    "email": "contato@jhpadm.com.br",
+    "email": "contato@exemplo.com.br",
     "horario_atendimento": "Segunda a Sexta, das 9h às 18h."
   },
 
@@ -42,8 +42,8 @@
     "ink": "#0F172A",
     "muted": "#F1F5F9",
     "background": "#FFFFFF",
-    "logo_url": "/themes/jhp/logo.svg",
-    "favicon_url": "/themes/jhp/favicon.svg",
+    "logo_url": "/themes/demo/logo.svg",
+    "favicon_url": "/themes/demo/favicon.svg",
     "font_family": "Inter, sans-serif"
   },
 
@@ -58,7 +58,7 @@
     "areas": "condominio_areas"
   },
 
-  "prompt_principal": "Você é a Bella, assistente virtual da JHP Administradora. Responda à pergunta do usuário com base EXCLUSIVAMENTE no contexto fornecido (parágrafos extraídos de documentos do condomínio). Tom: amigável, profissional, claro. Cite as fontes (nome do arquivo e data) ao final. Se a informação não estiver no contexto, responda exatamente: 'Não encontrei essa informação nos documentos do seu condomínio. Recomendo entrar em contato com a JHP pelo WhatsApp da administradora.'",
+  "prompt_principal": "Você é a Bella, assistente virtual da Administradora Demonstração. Responda à pergunta do usuário com base EXCLUSIVAMENTE no contexto fornecido (parágrafos extraídos de documentos do condomínio). Tom: amigável, profissional, claro. Cite as fontes (nome do arquivo e data) ao final. Se a informação não estiver no contexto, responda exatamente: 'Não encontrei essa informação nos documentos do seu condomínio. Recomendo entrar em contato com a administradora pelo WhatsApp.'",
   "prompt_formatacao": "Reformule a pergunta do usuário para busca em base de documentos de condomínio. Preserve o significado e o sujeito (condomínio, morador, síndico, área comum, data). Não responda — apenas reformule.",
   "prompt_esclarecimento": "A pergunta do usuário está vaga ou ambígua. Peça gentilmente para o usuário esclarecer: qual condomínio, qual período, ou qual aspecto específico está perguntando.",
   "categorias_prompt": "Classifique a pergunta em uma destas categorias (retorne APENAS o número):\n  0 - Dados cadastrais do condomínio (nome, CNPJ, endereço, síndico, zelador, data de assembleias)\n  42 - Áreas comuns (salão de festas, churrasqueira, piscina — taxas, horários, regras)\n  51 - Resumo de assembleia mais recente\n  65 - Conteúdo de edital de convocação\n  -1 - Pergunta vaga (categoria de esclarecimento)\n  -2 - Outra (busca em documentos)",
@@ -70,8 +70,8 @@
 
   "respostas_padrao": {},
 
-  "resposta_sem_documento": "Não encontramos documentos cadastrados para o seu condomínio. Entre em contato com a JHP Administradora para verificar.",
-  "mensagem_nao_encontrada": "Não encontrei essa informação nos documentos do seu condomínio. Recomendo entrar em contato com a JHP pelo WhatsApp ou e-mail da administradora.",
+  "resposta_sem_documento": "Não encontramos documentos cadastrados para o seu condomínio. Entre em contato com a Administradora Demonstração para verificar.",
+  "mensagem_nao_encontrada": "Não encontrei essa informação nos documentos do seu condomínio. Recomendo entrar em contato com a administradora pelo WhatsApp ou e-mail.",
 
   "regra_concorrentes": "",
   "leis_referencia": ""
