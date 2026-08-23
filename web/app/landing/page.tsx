@@ -10,7 +10,7 @@ import Link from "next/link";
 
 import { Calculadora } from "@/components/landing/Calculadora";
 import { ModalidadePlanos } from "@/components/landing/ModalidadePlanos";
-import { ModuloCard } from "@/components/landing/ModuloCard";
+import { ModuloCard, type StatusProduto } from "@/components/landing/ModuloCard";
 
 /* -------------------------------------------------------------------------- */
 /* Tipos                                                                       */
@@ -22,22 +22,41 @@ interface ModuloInfo {
   tagline: string;
   descricao: string;
   icone: string;
-  status: "disponivel" | "preview";
+  status: StatusProduto;
   modalidades: string[];
+  /** Fato operacional exibido nos produtos "em operação na Lello".
+   *  Só fato verificável (desde quando, sobre que escala) — nunca número
+   *  de acurácia, que varia por carteira e ainda não foi calibrado fora
+   *  da Lello. Deixar vazio esconde a linha. */
+  fatoOperacional?: string;
 }
 
-/* -------------------------------------------------------------------------- */
-/* Fallback hardcoded (espelha api/tenants/modulos.py)                         */
-/* -------------------------------------------------------------------------- */
+/*
+ * `StatusProduto` vem do ModuloCard (que renderiza os selos), para os dois
+ * arquivos não saírem de sincronia:
+ *  - `em_implantacao`     → software construído, subindo para o piloto
+ *  - `em_operacao_lello`  → já roda dentro da Lello; falta expor na plataforma
+ *  - `roadmap`            → não existe em lugar nenhum; não listado nesta página
+ */
 
-const MODULOS_FALLBACK: ModuloInfo[] = [
+/* -------------------------------------------------------------------------- */
+/* Catálogo comercial — estático e independente da API                         */
+/* -------------------------------------------------------------------------- */
+/*
+ * Esta página não consulta `/modulos`. O catálogo do produto lista só o que a
+ * API serve (é o que gateia `require_module`); o catálogo comercial mostra
+ * também o que a Lello opera internamente. São listas diferentes de propósito,
+ * e acoplá-las faria a página de vendas depender de um backend no ar.
+ */
+
+const CATALOGO: ModuloInfo[] = [
   {
     slug: "chat",
     nome_produto: "Agente Conversacional",
     tagline: "Responde perguntas sobre documentos do condomínio em segundos.",
     descricao: "Assistente virtual condominial (chatbot RAG sobre documentos).",
     icone: "message-circle",
-    status: "disponivel",
+    status: "em_implantacao",
     modalidades: ["A", "B"],
   },
   {
@@ -47,7 +66,7 @@ const MODULOS_FALLBACK: ModuloInfo[] = [
     descricao:
       "Geração, comparação e correção de atas de assembleia condominial a partir de gravação de áudio.",
     icone: "file-text",
-    status: "disponivel",
+    status: "em_implantacao",
     modalidades: ["A", "B"],
   },
   {
@@ -57,9 +76,19 @@ const MODULOS_FALLBACK: ModuloInfo[] = [
     descricao:
       "Extração estruturada de PDFs de cobrança via Document AI e análise financeira condominial.",
     icone: "banknote",
-    status: "disponivel",
+    status: "em_implantacao",
     modalidades: ["A", "B"],
   },
+  /* ---------------------------------------------------------------------- */
+  /* Em operação na Lello — modelos que já rodam internamente e ainda não    */
+  /* estão expostos na plataforma.                                          */
+  /*                                                                        */
+  /* TODO(henrique): preencher `fatoOperacional` de cada um com o dado real  */
+  /* — desde quando opera e sobre que escala. Só fato verificável; número de */
+  /* acurácia não entra em página pública, porque a calibração fora da       */
+  /* carteira da Lello ainda não existe e o número viraria o benchmark que   */
+  /* o parceiro cobra no piloto.                                            */
+  /* ---------------------------------------------------------------------- */
   {
     slug: "churn",
     nome_produto: "Agente de Churn",
@@ -67,55 +96,44 @@ const MODULOS_FALLBACK: ModuloInfo[] = [
     descricao:
       "Previsão de risco de saída de condôminos inadimplentes com base em histórico de pagamentos.",
     icone: "trending-down",
-    status: "preview",
+    status: "em_operacao_lello",
     modalidades: ["A", "B", "C"],
   },
   {
-    slug: "folha",
-    nome_produto: "Agente Folha de Pagamento",
-    tagline: "Processa a folha dos funcionários do condomínio sem planilha.",
+    slug: "inadimplencia",
+    nome_produto: "Predição de Inadimplência",
+    tagline: "Antecipa quais unidades tendem a atrasar o pagamento.",
     descricao:
-      "Automação de folha de pagamento dos funcionários do condomínio com encargos e obrigações.",
-    icone: "banknote",
-    status: "preview",
-    modalidades: ["A", "B"],
+      "Modelo preditivo de inadimplência sobre o histórico financeiro da carteira.",
+    icone: "trending-down",
+    status: "em_operacao_lello",
+    modalidades: ["A", "B", "C"],
   },
   {
-    slug: "sindico",
-    nome_produto: "Agente do Síndico",
-    tagline: "Copiloto do síndico para a gestão do condomínio.",
+    slug: "fraude",
+    nome_produto: "Detecção de Fraude",
+    tagline: "Sinaliza operações fora do padrão na movimentação do condomínio.",
     descricao:
-      "Assistente do síndico para prazos, obrigações legais e priorização de demandas.",
-    icone: "bot",
-    status: "preview",
-    modalidades: ["A", "B"],
+      "Modelo de detecção de risco operacional e fraude sobre dados transacionais.",
+    icone: "shield-alert",
+    status: "em_operacao_lello",
+    modalidades: ["A", "B", "C"],
   },
   {
-    slug: "chamado",
-    nome_produto: "Agente Atendimento de Chamado",
-    tagline: "Recebe, tria e encaminha chamados dos moradores automaticamente.",
+    slug: "isc",
+    nome_produto: "ISC — Índice de Saúde do Condomínio",
+    tagline: "Score único que resume a saúde financeira e operacional.",
     descricao:
-      "Atendimento e triagem automática de chamados de moradores, roteando para o responsável certo.",
-    icone: "message-circle",
-    status: "preview",
-    modalidades: ["A", "B"],
+      "Índice agregado por condomínio, combinando sinais financeiros e operacionais.",
+    icone: "activity",
+    status: "em_operacao_lello",
+    modalidades: ["A", "B", "C"],
   },
 ];
 
-/* -------------------------------------------------------------------------- */
-/* Busca de módulos (server-side)                                               */
-/* -------------------------------------------------------------------------- */
-
-async function buscarModulos(): Promise<ModuloInfo[]> {
-  const apiUrl =
-    process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-  try {
-    const res = await fetch(`${apiUrl}/modulos`, { cache: "no-store" });
-    if (!res.ok) return MODULOS_FALLBACK;
-    return (await res.json()) as ModuloInfo[];
-  } catch {
-    return MODULOS_FALLBACK;
-  }
+/** Itens `roadmap` não são listados — ver comentário em `StatusProduto`. */
+function produtosVisiveis(): ModuloInfo[] {
+  return CATALOGO.filter((m) => m.status !== "roadmap");
 }
 
 /* -------------------------------------------------------------------------- */
@@ -158,18 +176,22 @@ const CAMADAS = [
     nome: "Compreensão",
     horizonte: "Hoje",
     descricao: "Chat, Atas, Cobranças, Extração de dados",
-    badge: "Em produção",
+    badge: "Construído",
     badgeColor: "bg-green-100 text-green-800",
     check: true,
   },
   {
+    // Os modelos desta camada já rodam dentro da Lello. O que falta é a camada
+    // de exposição multi-tenant — não a construção do modelo. Classificar como
+    // "9–12 meses" subvendia ativo que a empresa já tem.
     numero: 2,
     nome: "Inteligência",
-    horizonte: "9–12 meses",
-    descricao: "ISC (Índice de Saúde do Condomínio), predição de inadimplência",
-    badge: "Em desenvolvimento",
-    badgeColor: "bg-blue-100 text-blue-800",
-    check: false,
+    horizonte: "Já opera na Lello",
+    descricao:
+      "Churn, predição de inadimplência, detecção de fraude, ISC — falta expor na plataforma",
+    badge: "Em operação na Lello",
+    badgeColor: "bg-emerald-100 text-emerald-800",
+    check: true,
   },
   {
     numero: 3,
@@ -197,8 +219,8 @@ const CAMADAS = [
 /* Componente da página                                                         */
 /* -------------------------------------------------------------------------- */
 
-export default async function LandingPage() {
-  const modulos = await buscarModulos();
+export default function LandingPage() {
+  const modulos = produtosVisiveis();
 
   return (
     <div className="min-h-screen bg-background text-foreground">

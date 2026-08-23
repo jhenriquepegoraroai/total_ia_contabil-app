@@ -119,6 +119,10 @@ function ResultCard({
 export function Calculadora() {
   const [condominios, setCondominios] = useState(200);
   const [ticket, setTicket] = useState(150);
+  // Premissa de economia operacional. É editável de propósito: era uma
+  // constante escondida no cálculo, e premissa que o leitor não consegue
+  // mexer não é estimativa, é afirmação.
+  const [horasPorCondominio, setHorasPorCondominio] = useState(2);
   const [modulosSelecionados, setModulosSelecionados] = useState<Set<string>>(
     new Set(["chat", "atas"])
   );
@@ -146,11 +150,15 @@ export function Calculadora() {
     const margemBruta = receitaMensal - custoIA;
     const margemPct = receitaMensal > 0 ? (margemBruta / receitaMensal) * 100 : 0;
 
-    // Horas salvas: estimativa ~2h/condomínio/mês em atendimento manual
-    const horasSalvas = condominios * 2 * modulosSelecionados.size;
+    // Horas salvas por mês, a partir da premissa editável acima.
+    const horasSalvas = condominios * horasPorCondominio * modulosSelecionados.size;
 
-    // Payback: investimento inicial estimado = 3× custo mensal IA
-    const paybackMeses = custoIA > 0 ? Math.ceil((custoIA * 3) / custoIA) : 3;
+    // NOTA: aqui existia um "payback em meses" calculado como
+    // `ceil((custoIA * 3) / custoIA)` — o custoIA cancela e o resultado era
+    // sempre 3, qualquer que fosse o input. Foi removido em vez de corrigido:
+    // payback honesto exige investimento inicial e custo evitado, que não
+    // temos. Métrica vazia numa tela que o cliente mexe ao vivo custa a
+    // credibilidade do resto.
 
     return {
       receitaMensal,
@@ -158,9 +166,8 @@ export function Calculadora() {
       margemBruta,
       margemPct,
       horasSalvas,
-      paybackMeses,
     };
-  }, [condominios, ticket, modulosSelecionados]);
+  }, [condominios, ticket, horasPorCondominio, modulosSelecionados]);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
@@ -189,6 +196,22 @@ export function Calculadora() {
             onChange={setTicket}
             displayValue={formatBRL(ticket)}
           />
+
+          <div className="space-y-1">
+            <SliderField
+              label="Horas/mês economizadas por condomínio, por módulo"
+              value={horasPorCondominio}
+              min={0.5}
+              max={8}
+              step={0.5}
+              onChange={setHorasPorCondominio}
+              displayValue={`${horasPorCondominio.toLocaleString("pt-BR")} h`}
+            />
+            <p className="text-xs text-muted-foreground">
+              Premissa de economia operacional — ajuste conforme a realidade da
+              sua operação. Não é medição; é a estimativa que entra na conta.
+            </p>
+          </div>
 
           <div className="space-y-3">
             <p className="text-sm font-medium">Módulos contratados</p>
@@ -256,20 +279,24 @@ export function Calculadora() {
           />
         </div>
 
-        <div className="rounded-xl border border-border bg-background p-5 flex items-center justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Payback estimado
-            </p>
-            <p className="text-3xl font-extrabold text-primary">
-              {resultado.paybackMeses} meses
-            </p>
-          </div>
-          <div className="text-right">
-            <p className="text-xs text-muted-foreground max-w-[180px]">
-              Retorno sobre o investimento inicial em implantação
-            </p>
-          </div>
+        <div className="rounded-xl border border-border bg-background p-5">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Premissas desta simulação
+          </p>
+          <ul className="mt-2 text-xs text-muted-foreground space-y-1 list-disc pl-4">
+            <li>
+              Custo de IA como percentual do faturamento da carteira, por módulo
+              contratado.
+            </li>
+            <li>
+              {horasPorCondominio.toLocaleString("pt-BR")} h/mês economizadas por
+              condomínio, por módulo — premissa ajustável acima.
+            </li>
+            <li>
+              Números de receita e margem derivam apenas dos valores informados
+              nesta tela.
+            </li>
+          </ul>
         </div>
 
         <p className="text-xs text-muted-foreground leading-relaxed">
