@@ -154,7 +154,7 @@ export default function AtasListPage() {
             <FileText className="h-10 w-10 mx-auto mb-3 opacity-40" />
             <p className="font-medium text-foreground">Nenhuma ata ainda</p>
             <p className="text-sm mt-1">
-              Clique em "Nova ata" pra começar a primeira.
+              Clique em &ldquo;Nova ata&rdquo; pra começar a primeira.
             </p>
           </CardContent>
         </Card>

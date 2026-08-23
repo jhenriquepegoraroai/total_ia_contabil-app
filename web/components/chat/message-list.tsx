@@ -46,7 +46,7 @@ function EmptyState() {
               key={s}
               className="rounded-lg border bg-card px-3 py-2 text-muted-foreground italic"
             >
-              "{s}"
+              &ldquo;{s}&rdquo;
             </div>
           ))}
         </div>

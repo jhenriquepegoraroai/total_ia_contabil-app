@@ -366,7 +366,7 @@ export default function AtaDetailPage() {
             {audios.length === 0 ? (
               <p className="text-sm text-muted-foreground mb-3">
                 Nenhum áudio enviado. O upload é opcional — você também pode colar
-                a transcrição direto no campo "Resumo" acima.
+                a transcrição direto no campo &ldquo;Resumo&rdquo; acima.
               </p>
             ) : (
               <ul className="space-y-1 mb-3 text-sm">
@@ -481,7 +481,8 @@ export default function AtaDetailPage() {
             )
           ) : (
             <p className="text-sm text-muted-foreground">
-              Sem versão ainda. Preencha os insumos acima e clique em "Gerar ata".
+              Sem versão ainda. Preencha os insumos acima e clique em
+              &ldquo;Gerar ata&rdquo;.
             </p>
           )}
         </CardContent>

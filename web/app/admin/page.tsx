@@ -99,7 +99,7 @@ export default function AdminTenantsPage() {
             <Building2 className="h-10 w-10 mx-auto mb-3 opacity-40" />
             <p className="font-medium text-foreground">Nenhuma administradora cadastrada</p>
             <p className="text-sm mt-1">
-              Comece criando a primeira via "Nova administradora".
+              Comece criando a primeira via &ldquo;Nova administradora&rdquo;.
             </p>
           </CardContent>
         </Card>

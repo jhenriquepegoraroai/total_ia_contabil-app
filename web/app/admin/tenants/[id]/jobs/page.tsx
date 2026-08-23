@@ -91,7 +91,8 @@ export default function JobsPage({
             <History className="h-10 w-10 mx-auto mb-3 opacity-40" />
             <p className="font-medium text-foreground">Sem jobs ainda</p>
             <p className="text-sm mt-1">
-              Vá em "Fontes de dados", suba PDFs e clique em "Executar ingestão".
+              Vá em &ldquo;Fontes de dados&rdquo;, suba PDFs e clique em
+              &ldquo;Executar ingestão&rdquo;.
             </p>
           </CardContent>
         </Card>
