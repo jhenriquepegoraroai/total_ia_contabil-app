@@ -22,7 +22,7 @@ jobs:
         run: pip install ruff
 
       - name: Run ruff
-        run: ruff check api/ ingestion/ tests/ scripts/
+        run: ruff check api/ ingestion/ worker/ tests/ scripts/
 
   lint-typescript:
     name: Lint + typecheck TypeScript

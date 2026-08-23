@@ -34,6 +34,11 @@ python-multipart==0.0.19
 loguru==0.7.3
 httpx==0.28.1
 
+# Fila do worker de batch (scoring das capacidades de ML). Processo separado
+# da API — ver worker/main.py. Usa o Redis que já estava no compose e ocioso.
+rq==2.1.0
+redis==5.2.1
+
 # Testes
 pytest==8.3.4
 pytest-asyncio==0.24.0

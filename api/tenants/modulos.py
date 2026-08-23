@@ -27,6 +27,13 @@ Portfólio servido pela API:
   chat      → Agente Conversacional — RAG sobre documentos do condomínio
   atas      → Agente de Atas        — geração e workflow de ata de assembleia
   cobrancas → Agente Financeiro     — extração de PDFs via Document AI
+  churn     → Agente de Churn       — score lido de `capability_scores`
+
+Nota sobre `churn`: a API serve o endpoint de leitura e a plataforma tem a
+zona de features e o worker de batch. O modelo em si é encapsulado no
+bootstrap do worker; enquanto nenhum estiver registrado, o job falha alto e o
+motivo fica em `scoring_runs.erro` — o endpoint devolve lista vazia com a
+última execução anexada, nunca número inventado.
 """
 
 from __future__ import annotations
@@ -97,9 +104,19 @@ MODULOS_DISPONIVEIS: dict[str, ModuloInfo] = {
         status="disponivel",
         modalidades=["A", "B"],
     ),
-    # `churn` entra aqui junto com o endpoint dele (trilho de ML: zona de
-    # features + worker de scoring). Enquanto a API não servir, ele vive só
-    # no catálogo comercial da landing, como "em operação na Lello".
+    "churn": ModuloInfo(
+        slug="churn",
+        label="Bella Churn",
+        descricao=(
+            "Risco de saída de condômino inadimplente, a partir do histórico "
+            "de pagamentos entregue pelo tenant (ver contrato de features)."
+        ),
+        nome_produto="Agente de Churn",
+        tagline="Identifica condôminos com risco de saída antes que isso aconteça.",
+        icone="trending-down",
+        status="disponivel",
+        modalidades=["A", "B", "C"],
+    ),
 }
 
 # Conjunto de slugs válidos — usado pelo validator do `TenantConfig`.

@@ -23,9 +23,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY api/requirements.txt /tmp/requirements.txt
 RUN pip install -r /tmp/requirements.txt
 
-# Copia o código mantendo o layout de packages.
+# Copia o código mantendo o layout de packages. A mesma imagem serve à API e
+# ao worker de batch — o que muda é o comando (ver docker-compose.yml).
 COPY api /app/api
 COPY ingestion /app/ingestion
+COPY worker /app/worker
 
 EXPOSE 8000
 

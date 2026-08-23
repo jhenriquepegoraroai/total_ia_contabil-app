@@ -94,6 +94,35 @@ services:
       - ./data:/app/data        # storage local (uploads de PDF, etc.)
     command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 
+  # Worker de batch — processo SEPARADO da API, de propósito. O scoring das
+  # capacidades de ML roda aqui; restart da API não derruba job em andamento.
+  # Em Railway, este é um serviço próprio apontando para o mesmo Redis.
+  worker:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    container_name: avc_worker
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-avc}:${POSTGRES_PASSWORD:-avc_dev}@postgres:5432/${POSTGRES_DB:-assistente_condominios}
+      REDIS_URL: redis://redis:6379/0
+      OPEN_AI_KEY: ${OPEN_AI_KEY}
+      SECRET_KEY_JWT: ${SECRET_KEY_JWT}
+      STORAGE_PROVIDER: ${STORAGE_PROVIDER:-local}
+    volumes:
+      - ./api:/app/api
+      - ./worker:/app/worker
+      - ./ingestion:/app/ingestion
+      - ./data:/app/data
+    command: python -m worker.main
+
   web:
     image: node:20-alpine
     container_name: avc_web
