@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
+from api import config
 from api.db import is_db_healthy
 
 
@@ -13,7 +14,9 @@ class HealthResponse(BaseModel):
     status: str
     db: str
     tenants_enabled: list[str]
-    version: str = "0.3.0"
+    # SHA do commit implantado, não versão semântica: o que a operação precisa
+    # saber é qual código está no ar. Vem de GIT_SHA/RAILWAY_GIT_COMMIT_SHA.
+    version: str
 
 
 @router.get("/health", response_model=HealthResponse)
@@ -35,4 +38,5 @@ async def health(request: Request) -> HealthResponse:
         status=overall,
         db=db_status,
         tenants_enabled=tenants,
+        version=config.GIT_SHA,
     )

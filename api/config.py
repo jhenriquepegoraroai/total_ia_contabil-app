@@ -57,6 +57,14 @@ APP_ENV: Final[str] = _optional("APP_ENV", "development")
 LOG_LEVEL: Final[str] = _optional("LOG_LEVEL", "INFO")
 IS_PRODUCTION: Final[bool] = APP_ENV == "production"
 
+# SHA do commit implantado — é o que `/health` reporta. Sem ele não há como
+# saber qual código está no ar (o endpoint devolvia uma versão fixa em código,
+# que ninguém atualizava). Railway injeta RAILWAY_GIT_COMMIT_SHA sozinho; em
+# outro ambiente, injetar GIT_SHA no deploy.
+GIT_SHA: Final[str] = _optional(
+    "GIT_SHA", _optional("RAILWAY_GIT_COMMIT_SHA", "desconhecido")
+)
+
 # -----------------------------------------------------------------------------
 # Banco de dados
 # -----------------------------------------------------------------------------
